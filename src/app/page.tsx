@@ -1,7 +1,10 @@
+"use client"
 import Image from "next/image";
 import { IMAGES } from "../../public/assets";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 export default function Home() {
+    const router = useRouter()
     return (
         <>
             <div className="min-h-screen flex flex-col justify-center items-center">
@@ -11,8 +14,13 @@ export default function Home() {
 
                 <h1 className="text-center font-mono text-lg">Coming soon....</h1>
 
-                <Button className="m-2 font-bebas text-lg">LOGIN</Button>
-            </div>
+            <Button
+                className="m-2 font-bebas text-lg cursor-pointer"
+                onClick={() => router.push("/cafe-admin/login")}
+            >
+                LOGIN
+            </Button>           
+             </div>
         </>
     );
 }
