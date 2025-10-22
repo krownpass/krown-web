@@ -14,9 +14,9 @@ export function CafeAdminHeader({ title = "Dashboard", onToggleSidebar, right }:
             variants={fadeIn}
             initial="hidden"
             animate="show"
-            className="sticky top-0 z-40 flex h-14 items-center justify-between border-b bg-background/70 backdrop-blur px-4"
+            className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/70 backdrop-blur px-4"
         >
-            <div className="flex items-center gap-2">
+<div className="flex items-center gap-2 p-2.5">
                 <button
                     onClick={onToggleSidebar}
                     className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-muted"

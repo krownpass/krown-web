@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -11,20 +10,23 @@ import {
   ChevronDown,
   Settings,
   BarChart,
-  User,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { clearToken } from "@/lib/auth";
 import { useCafeAdmin } from "@/hooks/useCafeAdmin";
 import { bebasNeue } from "@/lib/font";
+import { useState } from "react";
 
-export function CafeAdminSidebarMinimal() {
+interface SidebarProps {
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
+}
+
+export function CafeAdminSidebarMinimal({ collapsed, setCollapsed }: SidebarProps) {
   const { cafeadmin } = useCafeAdmin();
   const router = useRouter();
 
-  const [collapsed, setCollapsed] = useState(false);
   const [cafeMenuOpen, setCafeMenuOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const handleLogout = () => {
     clearToken();
@@ -33,13 +35,12 @@ export function CafeAdminSidebarMinimal() {
 
   return (
     <aside
-      className={
-        (collapsed ? "w-[64px]" : "w-[220px]") +
-        " h-screen border-r flex flex-col"
-      }
+      className={`${
+        collapsed ? "w-[64px]" : "w-[220px]"
+      } h-screen border-r flex flex-col transition-all duration-300`}
     >
-      {/* --------- Sidebar Header --------- */}
-      <div className="flex h-14 items-center justify-between px-3 border-b">
+      {/* Header */}
+      <div className="flex h-13.5 items-center justify-between px-3 border-b">
         <div className="flex items-center gap-2">
           <Crown className="size-5" />
           {!collapsed && (
@@ -58,17 +59,14 @@ export function CafeAdminSidebarMinimal() {
         )}
       </div>
 
-      {/* --------- Navigation --------- */}
+      {/* Navigation */}
       <nav className="p-2 flex-1 space-y-1">
-        <Link
-          href="/cafe-admin/dashboard"
-          className="flex items-center gap-3 px-2 py-2 hover:bg-muted"
-        >
+        <Link href="/cafe-admin/dashboard" className="flex items-center gap-3 px-2 py-2 hover:bg-muted">
           <Home className="size-4" />
           {!collapsed && <span>Home</span>}
         </Link>
 
-        {/* ----- Café Menu ----- */}
+        {/* Café Menu */}
         <button
           onClick={() => setCafeMenuOpen(!cafeMenuOpen)}
           className="flex items-center gap-3 px-2 py-2 hover:bg-muted w-full text-left"
@@ -86,47 +84,33 @@ export function CafeAdminSidebarMinimal() {
 
         {!collapsed && cafeMenuOpen && (
           <div className="pl-6 space-y-1">
-            <Link
-              href="/cafe-admin/dashboard/cafe/update"
-              className="block text-sm hover:underline"
-            >
+            <Link href="/cafe-admin/dashboard/cafe/update-items" className="block text-sm hover:underline">
+              Update Items 
+            </Link>
+            <Link href="/cafe-admin/dashboard/cafe/update" className="block text-sm hover:underline">
               Update Cafe
             </Link>
-            <Link
-              href="/cafe-admin/dashboard/cafe/bookings"
-              className="block text-sm hover:underline"
-            >
+            <Link href="/cafe-admin/dashboard/cafe/bookings" className="block text-sm hover:underline">
               Bookings
             </Link>
-            <Link
-              href="/cafe-admin/dashboard/cafe/redeem"
-              className="block text-sm hover:underline"
-            >
+            <Link href="/cafe-admin/dashboard/cafe/redeem" className="block text-sm hover:underline">
               Redeem Drinks
             </Link>
           </div>
         )}
 
-
-        {/* ----- Analytics & Settings ----- */}
-        <Link
-          href="/cafe-admin/dashboard/analytics"
-          className="flex items-center gap-3 px-2 py-2 hover:bg-muted"
-        >
+        <Link href="/cafe-admin/dashboard/analytics" className="flex items-center gap-3 px-2 py-2 hover:bg-muted">
           <BarChart className="size-4" />
           {!collapsed && <span>Analytics</span>}
         </Link>
 
-        <Link
-          href="/cafe-admin/dashboard/settings"
-          className="flex items-center gap-3 px-2 py-2 hover:bg-muted"
-        >
+        <Link href="/cafe-admin/dashboard/settings" className="flex items-center gap-3 px-2 py-2 hover:bg-muted">
           <Settings className="size-4" />
           {!collapsed && <span>Settings</span>}
         </Link>
       </nav>
 
-      {/* --------- User Profile / Logout --------- */}
+      {/* Footer */}
       <div className="p-3 border-t">
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">
@@ -136,9 +120,7 @@ export function CafeAdminSidebarMinimal() {
           </Avatar>
           {!collapsed && (
             <div className="grid text-left text-sm">
-              <span className="truncate font-medium">
-                {cafeadmin?.user_name}
-              </span>
+              <span className="truncate font-medium">{cafeadmin?.user_name}</span>
               <span className="text-xs">{cafeadmin?.user_role}</span>
             </div>
           )}

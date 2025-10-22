@@ -3,7 +3,16 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
     eslint: {
-    ignoreDuringBuilds: true,   // Skip ESLint during build
+    ignoreDuringBuilds: true,   
+  },
+    images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "obxwbeohekwwjtlykqko.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+    ],
   },
 };
 

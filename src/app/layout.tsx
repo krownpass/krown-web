@@ -3,6 +3,7 @@ import { Geist_Mono } from "next/font/google";
 import "./globals.css";
 import localFont from "next/font/local";
 import { Toaster } from "sonner";
+import { ReactQueryProvider } from "./cafe-admin/components/providers/ReactQueryProvider";
 
 const bebasNeue = localFont({
   src: "../../public/fonts/BebasNeue-Regular.ttf",
@@ -26,16 +27,17 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
       <body className={geistMono.variable}>
-        <Toaster richColors position="top-center" />
-        {children}
+        <ReactQueryProvider>
+          <Toaster richColors position="top-center" />
+          {children}
+        </ReactQueryProvider>
       </body>
     </html>
   );
 }
-
