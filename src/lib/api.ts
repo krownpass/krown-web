@@ -2,7 +2,7 @@ import axios from "axios";
 import { getToken } from "./auth";
 
 const api = axios.create({
-  baseURL: "http://localhost:4000/api",
+  baseURL: "https://shorty-dusky.vercel.app/2",
 });
 
 // Automatically inject token before every request
