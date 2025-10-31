@@ -1,19 +1,17 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
+/** @type {import('next').NextConfig} */
+const nextConfig = {
     eslint: {
-    ignoreDuringBuilds: true,   
-  },
+        ignoreDuringBuilds: true,
+    },
     images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "obxwbeohekwwjtlykqko.supabase.co",
-        pathname: "/storage/v1/object/public/**",
-      },
-    ],
-  },
+        remotePatterns: [
+            {
+                protocol: "https",
+                hostname: "obxwbeohekwwjtlykqko.supabase.co",
+                pathname: "/storage/v1/object/public/**",
+            },
+        ],
+    },
 };
 
 export default nextConfig;
