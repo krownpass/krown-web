@@ -96,7 +96,6 @@ export default function CafeAdminUpdatePage() {
 
     useEffect(() => {
         const subscription = form.watch((value, { name }) => {
-            console.log("👀 Form value changed:", name, value);
         });
         return () => subscription.unsubscribe();
     }, [form]);
@@ -117,13 +116,11 @@ export default function CafeAdminUpdatePage() {
         const updated = current.includes(day)
             ? current.filter((d) => d !== day)
             : [...current, day];
-        console.log("🗓 Updated working_days:", updated);
         form.setValue("working_days", updated, { shouldValidate: true });
     };
 
     const updateCafe = useMutation({
         mutationFn: async (payload: UpdateCafeInput) => {
-            console.log("🧠 Submitting update payload:", payload);
             return api.put(`/cafes/${cafeadmin?.cafe_id}`, payload);
         },
         onSuccess: (res) => {
@@ -158,11 +155,9 @@ export default function CafeAdminUpdatePage() {
                 <form
                     onSubmit={(e) => {
                         e.preventDefault();
-                        console.log("Form submit triggered");
                         form.handleSubmit(
                             onSubmit,
                             (errors) => {
-                                console.log(" Validation errors:", errors);
                                 toast.error("Please fix validation errors before saving.");
                             }
                         )(e);
