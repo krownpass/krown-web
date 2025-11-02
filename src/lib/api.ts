@@ -2,8 +2,8 @@ import axios from "axios";
 import { getToken } from "./auth";
 
 const api = axios.create({
-    // baseURL: "https://krown-server.onrender.com/api",
-    baseURL: 'http://localhost:4000/api',
+    baseURL: "https://krown-server.onrender.com/api",
+    // baseURL: 'http://localhost:4000/api',
 });
 
 // Automatically inject token before every request
