@@ -1,8 +1,8 @@
-import z from "zod";
+import { z } from "zod";
 
 export const CreateCafeUserSchema = z.object({
     user_name: z.string().min(3),
-    user_email: z.string().email(),
+    user_email: z.email(),
     user_mobile_no: z.string().min(10),
     login_user_name: z.string().min(3),
     password_hash: z.string().min(6),
@@ -38,47 +38,56 @@ export const CreateCafeSchema = z.object({
 });
 
 
-export const UpdateCafeSchema = z.object({
-  cafe_name: z.string().min(2, "Café name is required").optional(),
-  cafe_location: z.string().min(2, "Location is required").optional(),
-  cafe_description: z.string().optional(),
-  cafe_mobile_no: z
-    .string()
-    .regex(/^\+?\d{10,15}$/, "Invalid phone number format")
-    .optional(),
-  cafe_upi_id: z.string().min(3, "UPI ID required").optional(),
-  opening_time: z.string().optional(),
-  closing_time: z.string().optional(),
+export const DayEnum = z.enum([
+    "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"
+]);
 
-  cafe_latitude: z
-    .preprocess(
-      (val): number | undefined =>
-        val === "" || val === null || val === undefined
-          ? undefined
-          : Number(val),
-      z.number().optional()
-    )
-    .optional(),
-
-  cafe_longitude: z
-    .preprocess(
-      (val): number | undefined =>
-        val === "" || val === null || val === undefined
-          ? undefined
-          : Number(val),
-      z.number().optional()
-    )
-    .optional(),
-
-  working_days: z
-    .array(z.enum(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]))
-    .min(1, "Select at least one working day")
-    .optional(),
+export const SlotTimeSchema = z.object({
+    hour: z.number().int().min(0).max(23),
+    minute: z.number().int().min(0).max(59),
 });
+export const SlotCategorySchema = z.object({
+    name: z.string(),
+    hours: z.array(SlotTimeSchema)
+});
+export const UpdateCafeSchema = z.object({
+    cafe_id: z.string().uuid(),
 
+    cafe_name: z.string().optional(),
+    cafe_location: z.string().optional(),
+    cafe_description: z.string().optional(),
 
+    cafe_mobile_no: z
+        .string()
+        .regex(/^\+?\d{10,15}$/, "Invalid phone number format")
+        .optional(),
+
+    cafe_upi_id: z.string().optional(),
+
+    opening_time: z.string().optional(),
+    closing_time: z.string().optional(),
+
+    cafe_latitude: z.number().optional(),
+    cafe_longitude: z.number().optional(),
+
+    working_days: z
+        .array(z.enum(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]))
+        .optional(),
+
+    is_available: z.boolean().optional(),
+
+    categories: z.array(SlotCategorySchema).optional(),
+})
+    .partial()   // 🔥 makes all fields optional!
+    .strict();    // disables unknown keys
 export type UpdateCafeInput = z.infer<typeof UpdateCafeSchema>;
 
 export type CreateCafeInput = z.infer<typeof CreateCafeSchema>;
 
 export type CreateCafeUserInput = z.infer<typeof CreateCafeUserSchema>;
+
+export type Day = z.infer<typeof DayEnum>;
+
+export type SlotCategory = z.infer<typeof SlotCategorySchema>;
+
+export type SlotTime = z.infer<typeof SlotTimeSchema>;

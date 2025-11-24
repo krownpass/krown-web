@@ -14,13 +14,13 @@ export default function Home() {
 
                 <h1 className="text-center font-mono text-lg">Coming soon....</h1>
 
-            <Button
-                className="m-2 font-bebas text-lg cursor-pointer"
-                onClick={() => router.push("/cafe-admin/login")}
-            >
-                LOGIN
-            </Button>           
-             </div>
+                <Button
+                    className="m-2 font-bebas text-lg cursor-pointer"
+                    onClick={() => router.push("/login")}
+                >
+                    LOGIN
+                </Button>
+            </div>
         </>
     );
 }
