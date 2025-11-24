@@ -51,7 +51,7 @@ export const SlotCategorySchema = z.object({
     hours: z.array(SlotTimeSchema)
 });
 export const UpdateCafeSchema = z.object({
-    cafe_id: z.string().uuid(),
+    cafe_id: z.string().uuid().optional(),   // FIXED - was required
 
     cafe_name: z.string().optional(),
     cafe_location: z.string().optional(),
@@ -67,19 +67,18 @@ export const UpdateCafeSchema = z.object({
     opening_time: z.string().optional(),
     closing_time: z.string().optional(),
 
-    cafe_latitude: z.number().optional(),
-    cafe_longitude: z.number().optional(),
+    cafe_latitude: z.number().optional().nullable(),   // FIXED
+    cafe_longitude: z.number().optional().nullable(),  // FIXED
 
     working_days: z
-        .array(z.enum(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]))
+        .array(DayEnum)
         .optional(),
 
     is_available: z.boolean().optional(),
 
     categories: z.array(SlotCategorySchema).optional(),
 })
-    .partial()   // 🔥 makes all fields optional!
-    .strict();    // disables unknown keys
+    .strict();   // KEEP strict, REMOVE partial()
 export type UpdateCafeInput = z.infer<typeof UpdateCafeSchema>;
 
 export type CreateCafeInput = z.infer<typeof CreateCafeSchema>;

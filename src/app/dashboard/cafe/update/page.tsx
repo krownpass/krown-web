@@ -1,8 +1,3 @@
-// Full updated working file with minute-level time slots
-// (React + Next.js + React Hook Form + React Query)
-
-// NOTE: This is a direct drop-in replacement for your UserUpdatePage.
-// Supports minute precision time slots (e.g., 10:30, 11:45, 12:10 PM)
 
 "use client";
 

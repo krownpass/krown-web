@@ -3,7 +3,6 @@ import { getToken } from "./auth";
 
 const api = axios.create({
     baseURL: `${process.env.NEXT_PUBLIC_BACKEND_API}/api`,
-    //baseURL: 'http://localhost:4000/api',
 });
 
 // Automatically inject token before every request

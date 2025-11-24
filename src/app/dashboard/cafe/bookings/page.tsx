@@ -29,28 +29,23 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
-
-
-// Format ISO timestamp into nice UI values
-const formatDateTime = (iso: string) => {
-    if (!iso) return "";
-    return format(new Date(iso), "dd MMM yyyy • hh:mm a");
-};
-type BookingStatus = "pending" | "initiated" | "accepted" | "rejected" | "cancelled";
+type BookingStatus =
+    | "pending"
+    | "initiated"
+    | "accepted"
+    | "rejected"
+    | "cancelled";
 
 interface CafeBooking {
     booking_id: string;
-    booking_date: string; // ISO date
-    booking_start_time: string; // "HH:MM:SS"
+    booking_date: string;
+    booking_start_time: string;
     num_of_guests: number;
     special_request: string | null;
     booking_status: BookingStatus;
-
-    transaction_id?: string | null;    // optional
+    transaction_id?: string | null;
     advance_paid: boolean;
-    razorpay_payment_id?: string | null;
     transaction_amount?: number | null;
-    transaction_status?: string | null;
     user_name: string;
     user_mobile_no: string;
     created_at: string;
@@ -60,11 +55,10 @@ interface CafeSlotRow {
     slot_id: number;
     cafe_id: string;
     category: string;
-    slot_time: string; // "HH:MM:SS"
+    slot_time: string;
     is_available: boolean;
 }
 
-// HH:mm:ss → "hh:mm a"
 const formatTime = (time: string) => {
     const [h, m] = time.split(":");
     const d = new Date();
@@ -72,49 +66,48 @@ const formatTime = (time: string) => {
     return format(d, "hh:mm a");
 };
 
-// order: pending → accepted → rejected/cancelled
+const formatDateTime = (iso: string) => {
+    if (!iso) return "";
+    return format(new Date(iso), "dd MMM yyyy • hh:mm a");
+};
+
 const STATUS_ORDER: Record<BookingStatus, number> = {
     pending: 0,
-    initiated: 0, // treat as pending
+    initiated: 0,
     accepted: 1,
     rejected: 2,
     cancelled: 2,
 };
 
-const statusStyles: Record<
-    BookingStatus,
-    { label: string; badgeClass: string; pillClass: string }
-> = {
+const statusStyles = {
     pending: {
         label: "Pending",
         badgeClass: "bg-amber-100 text-amber-800 border border-amber-200",
-        pillClass: "bg-amber-50 text-amber-700",
     },
     initiated: {
         label: "Pending",
         badgeClass: "bg-amber-100 text-amber-800 border border-amber-200",
-        pillClass: "bg-amber-50 text-amber-700",
     },
     accepted: {
         label: "Accepted",
         badgeClass: "bg-emerald-100 text-emerald-800 border border-emerald-200",
-        pillClass: "bg-emerald-50 text-emerald-700",
     },
     rejected: {
         label: "Rejected",
         badgeClass: "bg-rose-100 text-rose-800 border border-rose-200",
-        pillClass: "bg-rose-50 text-rose-700",
     },
     cancelled: {
         label: "Cancelled",
         badgeClass: "bg-slate-100 text-slate-700 border border-slate-200",
-        pillClass: "bg-slate-50 text-slate-700",
     },
 };
 
 export default function CafeBookingsPage() {
     const router = useRouter();
-    const { user, loading: userLoading } = useCafeUser(["cafe_admin", "cafe_staff"]);
+    const { user, loading: userLoading } = useCafeUser([
+        "cafe_admin",
+        "cafe_staff",
+    ]);
     const cafeId = user?.cafe_id;
     const queryClient = useQueryClient();
 
@@ -122,10 +115,7 @@ export default function CafeBookingsPage() {
     const [search, setSearch] = useState("");
 
     // BOOKINGS
-    const {
-        data: bookingsData,
-        isLoading: bookingsLoading,
-    } = useQuery({
+    const { data: bookingsData, isLoading: bookingsLoading } = useQuery({
         queryKey: ["cafe-bookings", cafeId, view, search],
         enabled: !!cafeId,
         queryFn: async () => {
@@ -137,10 +127,7 @@ export default function CafeBookingsPage() {
     });
 
     // SLOTS
-    const {
-        data: slotsData,
-        isLoading: slotsLoading,
-    } = useQuery({
+    const { data: slotsData, isLoading: slotsLoading } = useQuery({
         queryKey: ["cafe-slots-manage", cafeId],
         enabled: !!cafeId,
         queryFn: async () => {
@@ -165,18 +152,16 @@ export default function CafeBookingsPage() {
 
     // MUTATIONS
     const updateStatusMutation = useMutation({
-        mutationFn: async (payload: { id: string; status: BookingStatus }) => {
-            return api.patch(`/bookings/${payload.id}/status`, {
+        mutationFn: async (payload: { id: string; status: BookingStatus }) =>
+            api.patch(`/bookings/${payload.id}/status`, {
                 status: payload.status,
-            });
-        },
+            }),
+
         onSuccess: () => {
             toast.success("Booking status updated");
             queryClient.invalidateQueries({ queryKey: ["cafe-bookings"] });
         },
-        onError: () => {
-            toast.error("Failed to update booking");
-        },
+        onError: () => toast.error("Failed to update booking"),
     });
 
     const toggleSlotMutation = useMutation({
@@ -184,26 +169,25 @@ export default function CafeBookingsPage() {
             category: string;
             hour: number;
             is_available: boolean;
-        }) => {
-            return api.patch(`/bookings/cafe-slots/availability`, {
+        }) =>
+            api.patch(`/bookings/cafe-slots/availability`, {
                 cafe_id: cafeId,
                 category: payload.category,
                 hour: payload.hour,
                 is_available: payload.is_available,
-            });
-        },
+            }),
+
         onSuccess: () => {
             toast.success("Slot availability updated");
-            queryClient.invalidateQueries({ queryKey: ["cafe-slots-manage"] });
+            queryClient.invalidateQueries({
+                queryKey: ["cafe-slots-manage"],
+            });
         },
-        onError: () => {
-            toast.error("Failed to update slot");
-        },
+        onError: () => toast.error("Failed to update slot"),
     });
 
-    const handleStatusChange = (id: string, status: BookingStatus) => {
+    const handleStatusChange = (id: string, status: BookingStatus) =>
         updateStatusMutation.mutate({ id, status });
-    };
 
     const handleSlotToggle = (slot: CafeSlotRow, next: boolean) => {
         const [hourStr] = slot.slot_time.split(":");
@@ -218,23 +202,22 @@ export default function CafeBookingsPage() {
     const sortedBookings = useMemo(() => {
         const list = bookingsData || [];
         return [...list].sort((a, b) => {
-            const ao = STATUS_ORDER[a.booking_status] ?? 99;
-            const bo = STATUS_ORDER[b.booking_status] ?? 99;
+            const ao = STATUS_ORDER[a.booking_status];
+            const bo = STATUS_ORDER[b.booking_status];
             if (ao !== bo) return ao - bo;
-            // newer first by date + time
+
             const aDt = new Date(`${a.booking_date}T${a.booking_start_time}`);
             const bDt = new Date(`${b.booking_date}T${b.booking_start_time}`);
             return bDt.getTime() - aDt.getTime();
         });
     }, [bookingsData]);
 
-    if (userLoading) {
+    if (userLoading)
         return (
             <p className="mt-10 text-center text-sm text-muted-foreground">
                 Loading café info…
             </p>
         );
-    }
 
     if (!cafeId) return null;
 
@@ -244,33 +227,31 @@ export default function CafeBookingsPage() {
             animate={{ opacity: 1, y: 0 }}
             className="p-6 md:p-10 space-y-8"
         >
-            {/* HEADER */}
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h1 className="text-3xl font-semibold tracking-tight">
                         Booking & Slot Management
                     </h1>
                     <p className="text-sm text-muted-foreground">
-                        Review incoming bookings and control which time slots are open.
+                        Review incoming bookings and manage time slot
+                        availability.
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push("/dashboard/cafe/update")}
-                        className="gap-2"
-                    >
-                        <Edit3 className="h-4 w-4" />
-                        Update slots & café details
-                    </Button>
-                </div>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push("/dashboard/cafe/update")}
+                    className="gap-2"
+                >
+                    <Edit3 className="h-4 w-4" />
+                    Update slots & café details
+                </Button>
             </div>
 
             <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)]">
-                {/* BOOKINGS COLUMN */}
-                <Card className="shadow-sm border-border/70 bg-gradient-to-b from-white to-slate-50">
+                {/* BOOKINGS */}
+                <Card className="shadow-sm">
                     <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
                             <CardTitle className="flex items-center gap-2">
@@ -278,7 +259,7 @@ export default function CafeBookingsPage() {
                                 Bookings
                             </CardTitle>
                             <p className="text-xs text-muted-foreground">
-                                Accept, reject, or review bookings from your guests.
+                                Accept, reject, or review customer bookings.
                             </p>
                         </div>
 
@@ -291,99 +272,134 @@ export default function CafeBookingsPage() {
                     </CardHeader>
 
                     <CardContent>
-                        <Tabs value={view} onValueChange={(v) => setView(v as "recent" | "past")}>
+                        <Tabs
+                            value={view}
+                            onValueChange={(v) =>
+                                setView(v as "recent" | "past")
+                            }
+                        >
                             <TabsList className="mb-4">
-                                <TabsTrigger value="recent">Recent</TabsTrigger>
+                                <TabsTrigger value="recent">
+                                    Recent
+                                </TabsTrigger>
                                 <TabsTrigger value="past">Past</TabsTrigger>
                             </TabsList>
 
-                            <TabsContent value="recent" className="mt-0">
+                            <TabsContent value="recent">
                                 <BookingsList
                                     bookings={sortedBookings}
                                     loading={bookingsLoading}
                                     isPast={false}
                                     onUpdate={handleStatusChange}
+                                    router={router}
                                 />
                             </TabsContent>
 
-                            <TabsContent value="past" className="mt-0">
+                            <TabsContent value="past">
                                 <BookingsList
                                     bookings={sortedBookings}
                                     loading={bookingsLoading}
                                     isPast
                                     onUpdate={handleStatusChange}
+                                    router={router}
                                 />
                             </TabsContent>
                         </Tabs>
                     </CardContent>
                 </Card>
 
-                {/* SLOTS COLUMN */}
+                {/* SLOTS */}
                 <Card className="shadow-sm">
                     <CardHeader>
                         <CardTitle className="flex items-center justify-between gap-2">
                             <span>Time Slots</span>
                             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">
-                                Toggle availability for each time
+                                Toggle availability
                             </span>
                         </CardTitle>
                     </CardHeader>
 
                     <CardContent className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
                         {slotsLoading && (
-                            <p className="text-sm text-muted-foreground">Loading slots…</p>
-                        )}
-
-                        {!slotsLoading && Object.keys(slotsByCategory).length === 0 && (
                             <p className="text-sm text-muted-foreground">
-                                No slots configured yet. Use “Update slots & café details” to add them.
+                                Loading slots…
                             </p>
                         )}
 
+                        {!slotsLoading &&
+                            Object.keys(slotsByCategory).length === 0 && (
+                                <p className="text-sm text-muted-foreground">
+                                    No slots configured. Use update button to
+                                    add slots.
+                                </p>
+                            )}
+
                         <AnimatePresence>
-                            {Object.entries(slotsByCategory).map(([category, list]) => (
-                                <motion.div
-                                    key={category}
-                                    initial={{ opacity: 0, y: 4 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -4 }}
-                                    className="rounded-xl border bg-slate-50/60 p-3 space-y-2"
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="text-sm font-semibold">{category}</h3>
-                                        <span className="text-xs text-muted-foreground">
-                                            {list.length} slot{list.length !== 1 ? "s" : ""}
-                                        </span>
-                                    </div>
+                            {Object.entries(slotsByCategory).map(
+                                ([category, list]) => (
+                                    <motion.div
+                                        key={category}
+                                        initial={{ opacity: 0, y: 4 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -4 }}
+                                        className="rounded-xl border bg-slate-50/60 p-3 space-y-2"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <h3 className="text-sm font-semibold">
+                                                {category}
+                                            </h3>
+                                            <span className="text-xs text-muted-foreground">
+                                                {list.length} slot
+                                                {list.length !== 1
+                                                    ? "s"
+                                                    : ""}
+                                            </span>
+                                        </div>
 
-                                    <div className="space-y-2">
-                                        {list.map((slot) => (
-                                            <div
-                                                key={slot.slot_id}
-                                                className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-sm border border-slate-100"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <Clock className="h-4 w-4 text-slate-400" />
-                                                    <span className="text-sm font-medium">
-                                                        {formatTime(slot.slot_time)}
-                                                    </span>
-                                                </div>
+                                        <div className="space-y-2">
+                                            {list.map((slot) => (
+                                                <div
+                                                    key={slot.slot_id}
+                                                    className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-sm border border-slate-100"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <Clock className="h-4 w-4 text-slate-400" />
+                                                        <span className="text-sm font-medium">
+                                                            {formatTime(
+                                                                slot.slot_time,
+                                                            )}
+                                                        </span>
+                                                    </div>
 
-                                                <div className="flex items-center gap-2">
-                                                    <Label className="text-xs text-muted-foreground">
-                                                        {slot.is_available ? "Available" : "Blocked"}
-                                                    </Label>
-                                                    <Switch
-                                                        checked={slot.is_available}
-                                                        onCheckedChange={(next) => handleSlotToggle(slot, next)}
-                                                        disabled={toggleSlotMutation.isLoading}
-                                                    />
+                                                    <div className="flex items-center gap-2">
+                                                        <Label className="text-xs text-muted-foreground">
+                                                            {slot.is_available
+                                                                ? "Available"
+                                                                : "Blocked"}
+                                                        </Label>
+                                                        <Switch
+                                                            checked={
+                                                                slot.is_available
+                                                            }
+                                                            onCheckedChange={(
+                                                                next,
+                                                            ) =>
+                                                                handleSlotToggle(
+                                                                    slot,
+                                                                    next,
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                toggleSlotMutation.isPending
+                                                            }
+                                                        />
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </motion.div>
-                            ))}
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                ),
+                            )}
                         </AnimatePresence>
                     </CardContent>
                 </Card>
@@ -392,36 +408,44 @@ export default function CafeBookingsPage() {
     );
 }
 
+/* =============================================
+   BOOKINGS LIST COMPONENT (Now with router prop)
+   ============================================= */
+
 function BookingsList({
     bookings,
     loading,
     isPast,
     onUpdate,
+    router,
 }: {
     bookings: CafeBooking[];
     loading: boolean;
     isPast: boolean;
     onUpdate: (id: string, status: BookingStatus) => void;
+    router: ReturnType<typeof useRouter>;
 }) {
-    if (loading) {
-        return (
-            <p className="text-sm text-muted-foreground">Loading bookings…</p>
-        );
-    }
-
-    if (!bookings.length) {
+    if (loading)
         return (
             <p className="text-sm text-muted-foreground">
-                No bookings found for this view.
+                Loading bookings…
             </p>
         );
-    }
+
+    if (!bookings.length)
+        return (
+            <p className="text-sm text-muted-foreground">
+                No bookings found.
+            </p>
+        );
 
     return (
         <div className="space-y-3">
             <AnimatePresence>
                 {bookings.map((b) => {
-                    const style = statusStyles[b.booking_status] ?? statusStyles.pending;
+                    const style =
+                        statusStyles[b.booking_status] ||
+                        statusStyles.pending;
 
                     return (
                         <motion.div
@@ -429,31 +453,29 @@ function BookingsList({
                             initial={{ opacity: 0, y: 4 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -4 }}
-                            className={`rounded-2xl border bg-white px-4 py-3 shadow-sm flex flex-col gap-3 md:flex-row md:items-center md:justify-between ${b.booking_status === "pending" || b.booking_status === "initiated"
-                                ? "border-amber-200"
-                                : b.booking_status === "accepted"
-                                    ? "border-emerald-200"
-                                    : b.booking_status === "rejected"
-                                        ? "border-rose-200"
-                                        : "border-slate-200"
-                                }`}
+                            className="rounded-2xl border bg-white px-4 py-3 shadow-sm flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
                         >
-                            {/* LEFT: guest + date/time */}
                             <div className="flex flex-1 flex-col gap-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <span className="text-sm font-semibold">{b.user_name}</span>
+                                    <span className="text-sm font-semibold">
+                                        {b.user_name}
+                                    </span>
                                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                         <Phone className="h-3 w-3" />
                                         {b.user_mobile_no}
                                     </span>
                                 </div>
 
-                                <p className="mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-3">
+                                <p className="mt-1 text-xs text-muted-foreground flex items-center gap-3">
                                     <span className="inline-flex items-center gap-1">
                                         <Clock className="h-3 w-3" />
-                                        {format(new Date(b.booking_date), "dd MMM yyyy")} •{" "}
-                                        {formatTime(b.booking_start_time)}
+                                        {format(
+                                            new Date(b.booking_date),
+                                            "dd MMM yyyy",
+                                        )}{" "}
+                                        • {formatTime(b.booking_start_time)}
                                     </span>
+
                                     <span className="inline-flex items-center gap-1">
                                         <Users className="h-3 w-3" />
                                         {b.num_of_guests} guests
@@ -461,7 +483,7 @@ function BookingsList({
                                 </p>
 
                                 {b.special_request && (
-                                    <p className="mt-1 text-xs text-slate-600 line-clamp-2">
+                                    <p className="mt-1 text-xs text-slate-600">
                                         “{b.special_request}”
                                     </p>
                                 )}
@@ -480,12 +502,17 @@ function BookingsList({
                                             size="sm"
                                             variant="outline"
                                             className="h-7 text-xs text-black hover:bg-blue-50"
-                                            onClick={() => router.push(`/dashboard/cafe/payment-report/${b.transaction_id}`)}
+                                            onClick={() =>
+                                                router.push(
+                                                    `/dashboard/cafe/payment-report/${b.transaction_id}`,
+                                                )
+                                            }
                                         >
                                             View Payment Report
                                         </Button>
                                     </div>
                                 )}
+
                                 <Badge
                                     className={`mt-2 w-fit px-2.5 py-0.5 text-[11px] font-medium ${style.badgeClass}`}
                                     variant="secondary"
@@ -498,23 +525,34 @@ function BookingsList({
                                 <span className="text-[11px] text-muted-foreground">
                                     {formatDateTime(b.created_at)}
                                 </span>
+
                                 {!isPast &&
                                     (b.booking_status === "pending" ||
                                         b.booking_status === "initiated") && (
                                         <div className="flex gap-2">
                                             <Button
                                                 size="sm"
-                                                variant="default"
                                                 className="h-8 rounded-full bg-emerald-600 px-3 text-xs font-medium text-white hover:bg-emerald-700"
-                                                onClick={() => onUpdate(b.booking_id, "accepted")}
+                                                onClick={() =>
+                                                    onUpdate(
+                                                        b.booking_id,
+                                                        "accepted",
+                                                    )
+                                                }
                                             >
                                                 Accept
                                             </Button>
+
                                             <Button
                                                 size="sm"
                                                 variant="outline"
                                                 className="h-8 rounded-full border-rose-400 px-3 text-xs font-medium text-rose-600 hover:bg-rose-50"
-                                                onClick={() => onUpdate(b.booking_id, "rejected")}
+                                                onClick={() =>
+                                                    onUpdate(
+                                                        b.booking_id,
+                                                        "rejected",
+                                                    )
+                                                }
                                             >
                                                 Reject
                                             </Button>
