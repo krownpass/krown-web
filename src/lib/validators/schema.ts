@@ -39,46 +39,41 @@ export const CreateCafeSchema = z.object({
 
 
 export const DayEnum = z.enum([
-    "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"
+    "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN",
 ]);
 
 export const SlotTimeSchema = z.object({
     hour: z.number().int().min(0).max(23),
     minute: z.number().int().min(0).max(59),
 });
+
 export const SlotCategorySchema = z.object({
     name: z.string(),
-    hours: z.array(SlotTimeSchema)
+    hours: z.array(SlotTimeSchema),
 });
+
 export const UpdateCafeSchema = z.object({
-    cafe_id: z.string().uuid().optional(),   // FIXED - was required
+    cafe_id: z.uuid().optional(),
 
     cafe_name: z.string().optional(),
     cafe_location: z.string().optional(),
     cafe_description: z.string().optional(),
 
-    cafe_mobile_no: z
-        .string()
-        .regex(/^\+?\d{10,15}$/, "Invalid phone number format")
-        .optional(),
-
+    cafe_mobile_no: z.string().optional(),
     cafe_upi_id: z.string().optional(),
 
     opening_time: z.string().optional(),
     closing_time: z.string().optional(),
 
-    cafe_latitude: z.number().optional().nullable(),   // FIXED
-    cafe_longitude: z.number().optional().nullable(),  // FIXED
+    cafe_latitude: z.number().nullable().optional(),
+    cafe_longitude: z.number().nullable().optional(),
 
-    working_days: z
-        .array(DayEnum)
-        .optional(),
+    working_days: z.array(DayEnum).optional(),
 
     is_available: z.boolean().optional(),
 
     categories: z.array(SlotCategorySchema).optional(),
-})
-    .strict();   // KEEP strict, REMOVE partial()
+}).strict();
 export type UpdateCafeInput = z.infer<typeof UpdateCafeSchema>;
 
 export type CreateCafeInput = z.infer<typeof CreateCafeSchema>;

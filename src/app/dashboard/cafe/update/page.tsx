@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect } from "react";
@@ -9,7 +8,7 @@ import api from "@/lib/api";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -28,14 +27,12 @@ import { bebasNeue } from "@/lib/font";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { AxiosError } from "axios";
 
-/* --------------------------------------- */
-/* UTILITIES */
-/* --------------------------------------- */
 
 function to24Hour(hour12: number, period: "AM" | "PM") {
     if (hour12 === 12) return period === "AM" ? 0 : 12;
     return period === "AM" ? hour12 : hour12 + 12;
 }
+
 function formatTime(t: SlotTime) {
     if (!t || typeof t.hour !== "number") return "--:--";
     const minute = typeof t.minute === "number" ? t.minute : 0;
@@ -43,6 +40,7 @@ function formatTime(t: SlotTime) {
     const period = t.hour >= 12 ? "PM" : "AM";
     return `${hr12}:${minute.toString().padStart(2, "0")} ${period}`;
 }
+
 const DEFAULT_NAMES = ["Breakfast", "Lunch", "Evening", "Night"];
 
 function nextCategoryName(existing: string[]) {
@@ -76,7 +74,8 @@ export default function UserUpdatePage() {
         },
     });
 
-    const getCategories = (): SlotCategory[] => form.getValues("categories") ?? [];
+    const getCategories = (): SlotCategory[] =>
+        form.getValues("categories") ?? [];
 
     /* ---------------- FETCH DATA ---------------- */
 
@@ -91,14 +90,14 @@ export default function UserUpdatePage() {
                 api.get(`/bookings/cafe-slots/${cafeId}`),
             ]);
 
-            // Convert backend hours (number[]) → SlotTime[]
             const categories = (slotsRes.data.categories ?? []).map((cat: any) => ({
                 name: cat.name,
                 hours: cat.hours.map((time: string) => {
                     const [h, m] = time.split(":");
                     return { hour: Number(h), minute: Number(m) };
-                })
+                }),
             })) as SlotCategory[];
+
             return {
                 cafe: cafeRes.data.data,
                 images: imgRes.data.data,
@@ -115,17 +114,17 @@ export default function UserUpdatePage() {
         const backend = data.cafe;
 
         form.reset({
-            cafe_name: backend.cafe_name,
-            cafe_location: backend.cafe_location,
-            cafe_description: backend.cafe_description,
-            cafe_mobile_no: backend.cafe_mobile_no,
-            cafe_upi_id: backend.cafe_upi_id,
-            opening_time: backend.opening_time?.slice(0, 5),
-            closing_time: backend.closing_time?.slice(0, 5),
+            cafe_name: backend.cafe_name ?? "",
+            cafe_location: backend.cafe_location ?? "",
+            cafe_description: backend.cafe_description ?? "",
+            cafe_mobile_no: backend.cafe_mobile_no ?? "",
+            cafe_upi_id: backend.cafe_upi_id ?? "",
+            opening_time: backend.opening_time?.slice(0, 5) ?? "",
+            closing_time: backend.closing_time?.slice(0, 5) ?? "",
             cafe_latitude: backend.cafe_latitude ?? undefined,
             cafe_longitude: backend.cafe_longitude ?? undefined,
             working_days: backend.working_days || [],
-            is_available: backend.is_available,
+            is_available: backend.is_available ?? true,
             categories: data.categories ?? [],
         });
     }, [data, form]);
@@ -143,43 +142,44 @@ export default function UserUpdatePage() {
         },
         onError: (error: unknown) => {
             const err = error as AxiosError<any>;
-            const message = err.response?.data?.message || err.message || "Update failed";
+            const message =
+                err.response?.data?.message || err.message || "Update failed";
             console.log("Update cafe error:", err.response?.data || err);
             toast.error(message);
         },
     });
 
+    /* ---------------- SUBMIT ---------------- */
+
     const onSubmit = (vals: UpdateCafeInput) => {
-        if (!user?.cafe_id) return toast.error("Missing cafe ID");
+        if (!user?.cafe_id) {
+            toast.error("Missing cafe ID");
+            return; // <- keep return type = void
+        }
 
-        const normalizedWorkingDays: Day[] | undefined = vals.working_days
-            ? (vals.working_days.map((d) => d.toUpperCase()) as Day[])
-            : undefined;
-
+        // Trim category names, keep everything else the same
         const normalizedCategories: SlotCategory[] | undefined =
-            vals.categories && vals.categories.length
-                ? vals.categories.map((c) => ({ name: c.name.trim(), hours: [...c.hours] }))
-                : undefined;
+            vals.categories?.map((c) => ({
+                name: c.name.trim(),
+                hours: [...c.hours],
+            }));
 
         const payload: UpdateCafeInput = {
             ...vals,
             cafe_id: user.cafe_id,
-            working_days: normalizedWorkingDays,
             categories: normalizedCategories,
         };
 
-        console.log("Payload:", payload);
+        // console.log("Payload:", payload);
         updateCafe.mutate(payload);
     };
 
-    if (loading || isLoading) return <p className="text-center mt-10">Loading...</p>;
+    if (loading || isLoading)
+        return <p className="text-center mt-10">Loading...</p>;
     if (!user) return null;
 
     form.watch("categories");
 
-    /* --------------------------------------- */
-    /* UI */
-    /* --------------------------------------- */
 
     return (
         <motion.div
@@ -211,38 +211,54 @@ export default function UserUpdatePage() {
                     <div>
                         <Label>Working Days</Label>
                         <div className="grid grid-cols-3 gap-3 mt-2">
-                            {([
-                                "MON",
-                                "TUE",
-                                "WED",
-                                "THU",
-                                "FRI",
-                                "SAT",
-                                "SUN",
-                            ] as Day[]).map((day) => {
-                                const curr = form.getValues("working_days") ?? [];
-                                const selected = curr.includes(day);
-                                return (
-                                    <button
-                                        key={day}
-                                        type="button"
-                                        onClick={() => {
-                                            const updated = selected
-                                                ? curr.filter((d) => d !== day)
-                                                : [...curr, day];
-                                            form.setValue("working_days", updated, {
-                                                shouldValidate: true,
-                                            });
-                                        }}
-                                        className={`px-3 py-2 rounded-lg text-sm border ${selected
-                                            ? "bg-black text-white"
-                                            : "bg-white text-gray-700"
-                                            }`}
-                                    >
-                                        {day}
-                                    </button>
-                                );
-                            })}
+                            {(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as Day[]).map(
+                                (day) => {
+                                    const curr = form.getValues("working_days") ?? [];
+                                    const selected = curr.includes(day);
+                                    return (
+                                        <button
+                                            key={day}
+                                            type="button"
+                                            onClick={() => {
+                                                const updated = selected
+                                                    ? curr.filter((d) => d !== day)
+                                                    : [...curr, day];
+                                                form.setValue("working_days", updated, {
+                                                    shouldValidate: true,
+                                                });
+                                            }}
+                                            className={`px-3 py-2 rounded-lg text-sm border ${selected
+                                                ? "bg-black text-white"
+                                                : "bg-white text-gray-700"
+                                                }`}
+                                        >
+                                            {day}
+                                        </button>
+                                    );
+                                }
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Availability Toggle */}
+                    <div className="mt-4">
+                        <Label>Is Available?</Label>
+                        <div className="flex items-center gap-3 mt-1">
+                            <button
+                                type="button"
+                                className={`px-4 py-2 rounded-md border ${form.watch("is_available")
+                                    ? "bg-green-600 text-white"
+                                    : "bg-red-600 text-white"
+                                    }`}
+                                onClick={() => {
+                                    const current = form.getValues("is_available") ?? true;
+                                    form.setValue("is_available", !current, {
+                                        shouldValidate: true,
+                                    });
+                                }}
+                            >
+                                {form.watch("is_available") ? "Available" : "Unavailable"}
+                            </button>
                         </div>
                     </div>
 
@@ -254,9 +270,7 @@ export default function UserUpdatePage() {
                             type="button"
                             onClick={() => {
                                 const current = getCategories();
-                                const newName = nextCategoryName(
-                                    current.map((c) => c.name)
-                                );
+                                const newName = nextCategoryName(current.map((c) => c.name));
                                 form.setValue("categories", [
                                     ...current,
                                     { name: newName, hours: [] },
@@ -289,9 +303,7 @@ export default function UserUpdatePage() {
                                         onClick={() => {
                                             form.setValue(
                                                 "categories",
-                                                getCategories().filter(
-                                                    (_c, i) => i !== index
-                                                )
+                                                getCategories().filter((_c, i) => i !== index)
                                             );
                                         }}
                                     >
@@ -311,10 +323,9 @@ export default function UserUpdatePage() {
                                                 type="button"
                                                 onClick={() => {
                                                     const all = [...getCategories()];
-                                                    all[index].hours =
-                                                        all[index].hours.filter(
-                                                            (_, vi) => vi !== i
-                                                        );
+                                                    all[index].hours = all[index].hours.filter(
+                                                        (_v, vi) => vi !== i
+                                                    );
                                                     form.setValue("categories", all);
                                                 }}
                                             >
@@ -335,13 +346,11 @@ export default function UserUpdatePage() {
                                         <option value="" disabled>
                                             Hour
                                         </option>
-                                        {Array.from({ length: 12 }, (_, i) => i + 1).map(
-                                            (hr) => (
-                                                <option value={hr} key={hr}>
-                                                    {hr}
-                                                </option>
-                                            )
-                                        )}
+                                        {Array.from({ length: 12 }, (_, i) => i + 1).map((hr) => (
+                                            <option value={hr} key={hr}>
+                                                {hr}
+                                            </option>
+                                        ))}
                                     </select>
 
                                     {/* Minute */}
@@ -385,23 +394,17 @@ export default function UserUpdatePage() {
                                         type="button"
                                         size="sm"
                                         onClick={() => {
-                                            const hrEl =
-                                                document.getElementById(
-                                                    `hour_${index}`
-                                                ) as HTMLSelectElement;
-                                            const minEl =
-                                                document.getElementById(
-                                                    `minute_${index}`
-                                                ) as HTMLSelectElement;
-                                            const prEl =
-                                                document.getElementById(
-                                                    `period_${index}`
-                                                ) as HTMLSelectElement;
+                                            const hrEl = document.getElementById(
+                                                `hour_${index}`
+                                            ) as HTMLSelectElement;
+                                            const minEl = document.getElementById(
+                                                `minute_${index}`
+                                            ) as HTMLSelectElement;
+                                            const prEl = document.getElementById(
+                                                `period_${index}`
+                                            ) as HTMLSelectElement;
 
-                                            if (!hrEl.value)
-                                                return toast.error(
-                                                    "Choose hour"
-                                                );
+                                            if (!hrEl.value) return toast.error("Choose hour");
 
                                             const hour24 = to24Hour(
                                                 Number(hrEl.value),
@@ -412,19 +415,12 @@ export default function UserUpdatePage() {
                                             const all = [...getCategories()];
 
                                             const exists = all[index].hours.some(
-                                                (h) =>
-                                                    h.hour === hour24 &&
-                                                    h.minute === minute
+                                                (h) => h.hour === hour24 && h.minute === minute
                                             );
                                             if (exists)
-                                                return toast.error(
-                                                    "Time already exists!"
-                                                );
+                                                return toast.error("Time already exists!");
 
-                                            all[index].hours.push({
-                                                hour: hour24,
-                                                minute,
-                                            });
+                                            all[index].hours.push({ hour: hour24, minute });
                                             all[index].hours.sort((a, b) =>
                                                 a.hour === b.hour
                                                     ? a.minute - b.minute
@@ -456,9 +452,7 @@ export default function UserUpdatePage() {
             {/* RIGHT SIDE IMAGES */}
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                    <h2 className={`${bebasNeue.className} text-3xl`}>
-                        Manage Images
-                    </h2>
+                    <h2 className={`${bebasNeue.className} text-3xl`}>Manage Images</h2>
                     <span className="text-sm">{images.length}/5 uploaded</span>
                 </div>
 
@@ -476,8 +470,7 @@ export default function UserUpdatePage() {
                     accept="image/*"
                     onChange={(e) => {
                         if (!e.target.files?.length) return;
-                        if (images.length >= 5)
-                            return toast.error("Max 5 images");
+                        if (images.length >= 5) return toast.error("Max 5 images");
 
                         const file = e.target.files[0];
                         const formData = new FormData();
@@ -518,25 +511,17 @@ export default function UserUpdatePage() {
                             <button
                                 onClick={() =>
                                     api
-                                        .delete(
-                                            `/cafes/images/${img.image_id}`,
-                                            {
-                                                data: {
-                                                    cafe_id: user!.cafe_id,
-                                                    path: img.image_url.split(
-                                                        "krown-cafes/"
-                                                    )[1],
-                                                    bucket: "krown-cafes",
-                                                },
-                                            }
-                                        )
+                                        .delete(`/cafes/images/${img.image_id}`, {
+                                            data: {
+                                                cafe_id: user!.cafe_id,
+                                                path: img.image_url.split("krown-cafes/")[1],
+                                                bucket: "krown-cafes",
+                                            },
+                                        })
                                         .then(() => {
                                             toast.success("Deleted");
                                             queryClient.invalidateQueries({
-                                                queryKey: [
-                                                    "cafe",
-                                                    user?.cafe_id,
-                                                ],
+                                                queryKey: ["cafe", user?.cafe_id],
                                             });
                                         })
                                 }
