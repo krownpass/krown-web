@@ -653,7 +653,7 @@ function BookingsList({
                                     key={idx}
                                     type="button"
                                     variant="outline"
-                                    size="xs"
+                                    size="sm"
                                     className="text-[11px] rounded-full"
                                     onClick={() => setMessage(tpl)}
                                 >
