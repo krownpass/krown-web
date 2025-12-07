@@ -57,7 +57,7 @@ export default function CafeAdminLoginPage() {
             toast.success("Login successful!");
 
             if (user.user_role === "cafe_admin") {
-                router.push("/dashboard/cafe/update");
+                router.push("/dashboard");
             } else if (user.user_role === "cafe_staff") {
                 router.push("/dashboard/cafe/redeem");
             } else {

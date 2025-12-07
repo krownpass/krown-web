@@ -63,7 +63,7 @@ export function CafeUserSidebarMinimal({ collapsed, setCollapsed }: SidebarProps
             {/* Navigation */}
             <nav className="p-2 flex-1 space-y-1">
                 <Link
-                    href="/dashboard/cafe"
+                    href="/dashboard"
                     className="flex items-center gap-3 px-2 py-2 hover:bg-muted"
                 >
                     <Home className="size-4" />

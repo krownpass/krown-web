@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import { Clock, Users, Phone, Edit3 } from "lucide-react";
+import { Clock, Users, Phone, Edit3, Bell, History } from "lucide-react";
 
 import api from "@/lib/api";
 import { useCafeUser } from "@/hooks/useCafeUser";
@@ -28,6 +28,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+
+/* =========================
+   TYPES
+   ========================= */
 
 type BookingStatus =
     | "pending"
@@ -48,7 +60,11 @@ interface CafeBooking {
     transaction_amount?: number | null;
     user_name: string;
     user_mobile_no: string;
+    user_id: string;
+    cafe_id: string;
+    cafe_name?: string;
     created_at: string;
+    notification_sent?: boolean; // << from backend
 }
 
 interface CafeSlotRow {
@@ -58,6 +74,18 @@ interface CafeSlotRow {
     slot_time: string;
     is_available: boolean;
 }
+
+interface NotificationRow {
+    notification_id: string;
+    title: string;
+    body: string;
+    data: any;
+    created_at: string;
+}
+
+/* =========================
+   HELPERS
+   ========================= */
 
 const formatTime = (time: string) => {
     const [h, m] = time.split(":");
@@ -101,6 +129,10 @@ const statusStyles = {
         badgeClass: "bg-slate-100 text-slate-700 border border-slate-200",
     },
 };
+
+/* =========================
+   MAIN PAGE
+   ========================= */
 
 export default function CafeBookingsPage() {
     const router = useRouter();
@@ -164,6 +196,9 @@ export default function CafeBookingsPage() {
         onError: () => toast.error("Failed to update booking"),
     });
 
+    const handleStatusChange = (id: string, status: BookingStatus) =>
+        updateStatusMutation.mutate({ id, status });
+
     const toggleSlotMutation = useMutation({
         mutationFn: async (payload: {
             category: string;
@@ -185,9 +220,6 @@ export default function CafeBookingsPage() {
         },
         onError: () => toast.error("Failed to update slot"),
     });
-
-    const handleStatusChange = (id: string, status: BookingStatus) =>
-        updateStatusMutation.mutate({ id, status });
 
     const handleSlotToggle = (slot: CafeSlotRow, next: boolean) => {
         const [hourStr] = slot.slot_time.split(":");
@@ -259,7 +291,8 @@ export default function CafeBookingsPage() {
                                 Bookings
                             </CardTitle>
                             <p className="text-xs text-muted-foreground">
-                                Accept, reject, or review customer bookings.
+                                Accept, reject, notify, or review customer
+                                bookings.
                             </p>
                         </div>
 
@@ -409,7 +442,7 @@ export default function CafeBookingsPage() {
 }
 
 /* =============================================
-   BOOKINGS LIST COMPONENT (Now with router prop)
+   BOOKINGS LIST COMPONENT — UPGRADED NOTIFICATIONS
    ============================================= */
 
 function BookingsList({
@@ -425,6 +458,146 @@ function BookingsList({
     onUpdate: (id: string, status: BookingStatus) => void;
     router: ReturnType<typeof useRouter>;
 }) {
+    const queryClient = useQueryClient();
+
+    // Notification modal state
+    const [notifyTarget, setNotifyTarget] = useState<{
+        booking: CafeBooking;
+        preset?: "accepted" | "rejected" | "generic";
+    } | null>(null);
+    const [message, setMessage] = useState("");
+
+    // Confirm dialog for Accept/Reject
+    const [pendingStatusChange, setPendingStatusChange] = useState<{
+        booking: CafeBooking;
+        status: BookingStatus;
+    } | null>(null);
+
+    // History modal
+    const [historyBooking, setHistoryBooking] = useState<CafeBooking | null>(
+        null,
+    );
+
+    const {
+        data: historyData,
+        isLoading: historyLoading,
+    } = useQuery({
+        queryKey: ["booking-notifications", historyBooking?.booking_id],
+        enabled: !!historyBooking,
+        queryFn: async () => {
+            if (!historyBooking) return [];
+            const res = await api.get("/notifications", {
+                params: {
+                    // You can filter by booking_id in data JSON on backend:
+                    // WHERE data->>'booking_id' = $1
+                    booking_id: historyBooking.booking_id,
+                    user_id: historyBooking.user_id,
+                },
+            });
+            return res.data.data as NotificationRow[];
+        },
+    });
+
+    /* ========= Notification Templates & Defaults ========= */
+
+    const templates = {
+        accepted: [
+            "Your booking has been accepted. We look forward to seeing you!",
+            "Your reservation is confirmed! See you soon at our café.",
+        ],
+        rejected: [
+            "Your booking has been rejected. Please contact us for more details.",
+            "We’re unable to confirm your booking at this time. Please reach out to the café.",
+        ],
+        generic: [
+            "Your booking is being processed. We will update you shortly.",
+            "Thank you for booking with us! We will keep you updated.",
+        ],
+    };
+
+    const buildDefaultMessage = (
+        booking: CafeBooking,
+        preset?: "accepted" | "rejected" | "generic",
+    ) => {
+        const base =
+            booking.cafe_name || "the café";
+
+        switch (preset) {
+            case "accepted":
+                return `Great news! Your booking at ${base} has been accepted. We look forward to hosting you.`;
+            case "rejected":
+                return `We’re sorry, but your booking at ${base} could not be confirmed. Please contact us for assistance.`;
+            case "generic":
+            default:
+                return `Your booking at ${base} is being processed. We’ll update you soon.`;
+        }
+    };
+
+    const openNotifyModal = (
+        booking: CafeBooking,
+        preset: "accepted" | "rejected" | "generic" = "generic",
+    ) => {
+        setNotifyTarget({ booking, preset });
+        setMessage(buildDefaultMessage(booking, preset));
+    };
+
+    /* ========= Send Notification ========= */
+
+    const sendNotification = useMutation({
+        mutationFn: async () => {
+            if (!notifyTarget) return;
+            const { booking } = notifyTarget;
+
+            return api.post("/push/send", {
+                user_id: booking.user_id,
+                title: "Booking Update",
+                body: message,
+                data: {
+                    booking_id: booking.booking_id,
+                    cafe_id: booking.cafe_id,
+                },
+            });
+        },
+        onSuccess: () => {
+            toast.success("Notification sent");
+            setNotifyTarget(null);
+            setMessage("");
+
+            // Refresh bookings so notification_sent is true
+            queryClient.invalidateQueries({
+                queryKey: ["cafe-bookings"],
+            });
+        },
+        onError: () => toast.error("Failed to send notification"),
+    });
+
+    /* ========= Accept / Reject Flow with CONFIRM ========= */
+
+    const confirmStatusChange = (booking: CafeBooking, status: BookingStatus) => {
+        setPendingStatusChange({ booking, status });
+    };
+
+    const handleStatusConfirm = (sendAlso: boolean) => {
+        if (!pendingStatusChange) return;
+        const { booking, status } = pendingStatusChange;
+
+        // 1. Update booking status
+        onUpdate(booking.booking_id, status);
+
+        // 2. Optionally open notification modal with preset
+        if (sendAlso && !booking.notification_sent) {
+            const preset =
+                status === "accepted"
+                    ? "accepted"
+                    : status === "rejected"
+                        ? "rejected"
+                        : "generic";
+            openNotifyModal(booking, preset);
+        }
+
+        setPendingStatusChange(null);
+    };
+
     if (loading)
         return (
             <p className="text-sm text-muted-foreground">
@@ -440,129 +613,377 @@ function BookingsList({
         );
 
     return (
-        <div className="space-y-3">
-            <AnimatePresence>
-                {bookings.map((b) => {
-                    const style =
-                        statusStyles[b.booking_status] ||
-                        statusStyles.pending;
+        <>
+            {/* =============== NOTIFICATION MODAL =============== */}
+            <Dialog
+                open={!!notifyTarget}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setNotifyTarget(null);
+                        setMessage("");
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Send Notification</DialogTitle>
+                        {notifyTarget?.booking && (
+                            <DialogDescription>
+                                To:{" "}
+                                <span className="font-medium">
+                                    {notifyTarget.booking.user_name}
+                                </span>
+                            </DialogDescription>
+                        )}
+                    </DialogHeader>
 
-                    return (
-                        <motion.div
-                            key={b.booking_id}
-                            initial={{ opacity: 0, y: 4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            className="rounded-2xl border bg-white px-4 py-3 shadow-sm flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+                    {/* Templates */}
+                    <div className="mb-3 space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                            Quick templates
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            {(notifyTarget?.preset === "accepted"
+                                ? templates.accepted
+                                : notifyTarget?.preset === "rejected"
+                                    ? templates.rejected
+                                    : templates.generic
+                            ).map((tpl, idx) => (
+                                <Button
+                                    key={idx}
+                                    type="button"
+                                    variant="outline"
+                                    size="xs"
+                                    className="text-[11px] rounded-full"
+                                    onClick={() => setMessage(tpl)}
+                                >
+                                    Use: “
+                                    {tpl.length > 28
+                                        ? tpl.slice(0, 25) + "..."
+                                        : tpl}
+                                    ”
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Message box */}
+                    <Textarea
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        className="min-h-[120px]"
+                        placeholder="Type a custom message…"
+                    />
+
+                    <Button
+                        className="w-full mt-3"
+                        disabled={sendNotification.isPending || !message.trim()}
+                        onClick={() => sendNotification.mutate()}
+                    >
+                        {sendNotification.isPending
+                            ? "Sending…"
+                            : "Send Notification"}
+                    </Button>
+                </DialogContent>
+            </Dialog>
+
+            {/* =============== STATUS CONFIRMATION MODAL =============== */}
+            <Dialog
+                open={!!pendingStatusChange}
+                onOpenChange={(open) => {
+                    if (!open) setPendingStatusChange(null);
+                }}
+            >
+                <DialogContent className="sm:max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>Confirm status change</DialogTitle>
+                        {pendingStatusChange && (
+                            <DialogDescription>
+                                Change booking for{" "}
+                                <span className="font-medium">
+                                    {pendingStatusChange.booking.user_name}
+                                </span>{" "}
+                                to{" "}
+                                <span className="font-semibold">
+                                    {pendingStatusChange.status.toUpperCase()}
+                                </span>
+                                ?
+                            </DialogDescription>
+                        )}
+                    </DialogHeader>
+
+                    <div className="space-y-2 text-xs text-muted-foreground">
+                        <p>
+                            You can choose to update the status only, or update
+                            and notify the customer.
+                        </p>
+                        <p className="text-[11px]">
+                            Since you chose{" "}
+                            <span className="font-semibold">
+                                BLOCK_RESEND
+                            </span>
+                            , notification can be sent only once per booking.
+                        </p>
+                    </div>
+
+                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleStatusConfirm(false)}
                         >
-                            <div className="flex flex-1 flex-col gap-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <span className="text-sm font-semibold">
-                                        {b.user_name}
-                                    </span>
-                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                        <Phone className="h-3 w-3" />
-                                        {b.user_mobile_no}
-                                    </span>
-                                </div>
+                            Update only
+                        </Button>
 
-                                <p className="mt-1 text-xs text-muted-foreground flex items-center gap-3">
-                                    <span className="inline-flex items-center gap-1">
-                                        <Clock className="h-3 w-3" />
-                                        {format(
-                                            new Date(b.booking_date),
-                                            "dd MMM yyyy",
-                                        )}{" "}
-                                        • {formatTime(b.booking_start_time)}
-                                    </span>
+                        {/* Only show "Update & Notify" if notification not sent yet */}
+                        {pendingStatusChange &&
+                            !pendingStatusChange.booking.notification_sent && (
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => handleStatusConfirm(true)}
+                                >
+                                    Update & notify
+                                </Button>
+                            )}
+                    </div>
+                </DialogContent>
+            </Dialog>
 
-                                    <span className="inline-flex items-center gap-1">
-                                        <Users className="h-3 w-3" />
-                                        {b.num_of_guests} guests
-                                    </span>
-                                </p>
+            {/* =============== HISTORY MODAL =============== */}
+            <Dialog
+                open={!!historyBooking}
+                onOpenChange={(open) => {
+                    if (!open) setHistoryBooking(null);
+                }}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Notification history</DialogTitle>
+                        {historyBooking && (
+                            <DialogDescription>
+                                Booking for{" "}
+                                <span className="font-medium">
+                                    {historyBooking.user_name}
+                                </span>
+                            </DialogDescription>
+                        )}
+                    </DialogHeader>
 
-                                {b.special_request && (
-                                    <p className="mt-1 text-xs text-slate-600">
-                                        “{b.special_request}”
+                    {historyLoading ? (
+                        <p className="text-sm text-muted-foreground">
+                            Loading notifications…
+                        </p>
+                    ) : !historyData || historyData.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                            No notifications found for this booking.
+                        </p>
+                    ) : (
+                        <div className="space-y-3 max-h-[260px] overflow-y-auto pr-1">
+                            {historyData.map((n) => (
+                                <div
+                                    key={n.notification_id}
+                                    className="rounded-lg border bg-slate-50 px-3 py-2"
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs font-semibold">
+                                            {n.title}
+                                        </span>
+                                        <span className="text-[10px] text-muted-foreground">
+                                            {formatDateTime(n.created_at)}
+                                        </span>
+                                    </div>
+                                    <p className="mt-1 text-xs text-slate-700">
+                                        {n.body}
                                     </p>
-                                )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
-                                {b.advance_paid && (
-                                    <div className="flex items-center gap-3 mt-1">
-                                        <Badge className="bg-emerald-200 text-emerald-800 border border-emerald-300">
-                                            Paid Booking
-                                        </Badge>
+            {/* =============== BOOKINGS LIST =============== */}
+            <div className="space-y-3">
+                <AnimatePresence>
+                    {bookings.map((b) => {
+                        const style =
+                            statusStyles[b.booking_status] ||
+                            statusStyles.pending;
 
-                                        <span className="text-xs font-medium text-emerald-700">
-                                            ₹{b.transaction_amount}
+                        const notificationDisabled = !!b.notification_sent; // BLOCK_RESEND
+
+                        return (
+                            <motion.div
+                                key={b.booking_id}
+                                initial={{ opacity: 0, y: 4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -4 }}
+                                className="rounded-2xl border bg-white px-4 py-3 shadow-sm flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+                            >
+                                {/* LEFT */}
+                                <div className="flex flex-1 flex-col gap-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-sm font-semibold">
+                                            {b.user_name}
+                                        </span>
+                                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                            <Phone className="h-3 w-3" />
+                                            {b.user_mobile_no}
+                                        </span>
+                                    </div>
+
+                                    <p className="mt-1 text-xs text-muted-foreground flex items-center gap-3">
+                                        <span className="inline-flex items-center gap-1">
+                                            <Clock className="h-3 w-3" />
+                                            {format(
+                                                new Date(b.booking_date),
+                                                "dd MMM yyyy",
+                                            )}{" "}
+                                            •{" "}
+                                            {formatTime(
+                                                b.booking_start_time,
+                                            )}
                                         </span>
 
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 text-xs text-black hover:bg-blue-50"
-                                            onClick={() =>
-                                                router.push(
-                                                    `/dashboard/cafe/payment-report/${b.transaction_id}`,
-                                                )
-                                            }
-                                        >
-                                            View Payment Report
-                                        </Button>
-                                    </div>
-                                )}
+                                        <span className="inline-flex items-center gap-1">
+                                            <Users className="h-3 w-3" />
+                                            {b.num_of_guests} guests
+                                        </span>
+                                    </p>
 
-                                <Badge
-                                    className={`mt-2 w-fit px-2.5 py-0.5 text-[11px] font-medium ${style.badgeClass}`}
-                                    variant="secondary"
-                                >
-                                    {style.label}
-                                </Badge>
-                            </div>
+                                    {b.special_request && (
+                                        <p className="mt-1 text-xs text-slate-600">
+                                            “{b.special_request}”
+                                        </p>
+                                    )}
 
-                            <div className="flex items-center justify-end gap-2">
-                                <span className="text-[11px] text-muted-foreground">
-                                    {formatDateTime(b.created_at)}
-                                </span>
+                                    {b.advance_paid && (
+                                        <div className="flex items-center gap-3 mt-1">
+                                            <Badge className="bg-emerald-200 text-emerald-800 border border-emerald-300">
+                                                Paid Booking
+                                            </Badge>
 
-                                {!isPast &&
-                                    (b.booking_status === "pending" ||
-                                        b.booking_status === "initiated") && (
-                                        <div className="flex gap-2">
-                                            <Button
-                                                size="sm"
-                                                className="h-8 rounded-full bg-emerald-600 px-3 text-xs font-medium text-white hover:bg-emerald-700"
-                                                onClick={() =>
-                                                    onUpdate(
-                                                        b.booking_id,
-                                                        "accepted",
-                                                    )
-                                                }
-                                            >
-                                                Accept
-                                            </Button>
+                                            <span className="text-xs font-medium text-emerald-700">
+                                                ₹{b.transaction_amount}
+                                            </span>
 
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                className="h-8 rounded-full border-rose-400 px-3 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                                                className="h-7 text-xs text-black hover:bg-blue-50"
                                                 onClick={() =>
-                                                    onUpdate(
-                                                        b.booking_id,
-                                                        "rejected",
+                                                    router.push(
+                                                        `/dashboard/cafe/payment-report/${b.transaction_id}`,
                                                     )
                                                 }
                                             >
-                                                Reject
+                                                View Payment Report
                                             </Button>
                                         </div>
                                     )}
-                            </div>
-                        </motion.div>
-                    );
-                })}
-            </AnimatePresence>
-        </div>
+
+                                    <Badge
+                                        className={`mt-2 w-fit px-2.5 py-0.5 text-[11px] font-medium ${style.badgeClass}`}
+                                        variant="secondary"
+                                    >
+                                        {style.label}
+                                    </Badge>
+
+                                    {b.notification_sent && (
+                                        <span className="mt-1 text-[11px] text-emerald-700 inline-flex items-center gap-1">
+                                            <Bell className="h-3 w-3" />
+                                            Notification sent
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* RIGHT */}
+                                <div className="flex flex-col items-end gap-2 md:items-end">
+                                    <span className="text-[11px] text-muted-foreground">
+                                        {formatDateTime(b.created_at)}
+                                    </span>
+
+                                    <div className="flex items-center gap-2">
+                                        {/* View history */}
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-8 w-8"
+                                            onClick={() =>
+                                                setHistoryBooking(b)
+                                            }
+                                        >
+                                            <History className="h-4 w-4" />
+                                        </Button>
+
+                                        {/* Notify */}
+                                        {/* Notify button (disabled if already sent) */}
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className={`h-8 flex items-center gap-1 text-xs rounded-full ${b.notification_sent ? "opacity-50 cursor-not-allowed" : ""
+                                                }`}
+                                            disabled={b.notification_sent}
+                                            onClick={() => {
+                                                if (b.notification_sent) return;
+                                                openNotifyModal(b, "generic");
+                                            }}
+                                        >
+                                            <Bell className="h-3 w-3" />
+                                            {b.notification_sent ? "Notified" : "Notify"}
+                                        </Button>
+
+                                        {/* Extra helper text if disabled */}
+                                        {b.notification_sent && (
+                                            <span className="text-[10px] text-emerald-600 font-medium mt-1">
+                                                Already notified
+                                            </span>
+                                        )}
+
+                                        {/* Accept / Reject */}
+                                        {!isPast &&
+                                            (b.booking_status ===
+                                                "pending" ||
+                                                b.booking_status ===
+                                                "initiated") && (
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        className="h-8 rounded-full bg-emerald-600 px-3 text-xs font-medium text-white hover:bg-emerald-700"
+                                                        onClick={() =>
+                                                            confirmStatusChange(
+                                                                b,
+                                                                "accepted",
+                                                            )
+                                                        }
+                                                    >
+                                                        Accept
+                                                    </Button>
+
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-8 rounded-full border-rose-400 px-3 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                                                        onClick={() =>
+                                                            confirmStatusChange(
+                                                                b,
+                                                                "rejected",
+                                                            )
+                                                        }
+                                                    >
+                                                        Reject
+                                                    </Button>
+                                                </div>
+                                            )}
+                                    </div>
+                                </div>
+                            </motion.div>
+                        );
+                    })}
+                </AnimatePresence>
+            </div>
+        </>
     );
 }

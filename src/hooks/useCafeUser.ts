@@ -24,21 +24,18 @@ export function useCafeUser(requiredRoles?: ("cafe_admin" | "cafe_staff")[]) {
     useEffect(() => {
         const token = getToken();
 
-        // ❌ If no token → redirect to login
         if (!token) {
             router.replace("/login");
             setLoading(false);
             return;
         }
 
-        // ✅ Always verify with the ME endpoint
         api
             .get("/cafes/admin/me")
             .then((res) => {
                 const u = res.data?.data;
                 if (!u) throw new Error("Invalid user data");
 
-                // ✅ Check if user has permission for this page
                 if (requiredRoles && !requiredRoles.includes(u.user_role)) {
                     toast.error("Access denied");
                     clearToken();
@@ -49,10 +46,19 @@ export function useCafeUser(requiredRoles?: ("cafe_admin" | "cafe_staff")[]) {
                 setUser(u);
             })
             .catch((err) => {
-                // Handle auth or network errors
                 toast.dismiss();
-                clearToken();
-                router.replace("/login");
+
+                const status = err?.response?.status;
+
+                // Clear token ONLY if token is actually invalid
+                if (status === 401) {
+                    clearToken();
+                    router.replace("/login");
+                    return;
+                }
+
+                // For server/network issues, DON'T logout user
+                toast.error("Server unavailable. Please try again.");
             })
             .finally(() => setLoading(false));
     }, [router, requiredRoles]);

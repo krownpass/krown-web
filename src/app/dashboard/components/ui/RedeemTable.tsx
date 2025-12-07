@@ -57,10 +57,8 @@ export function RedeemTable({ data }: { data: any[] }) {
 
                                 {formatIST(r.created_at)}
                             </TableCell>
-
                             <TableCell className="text-gray-500 text-sm">
-
-                                {formatIST(r.updated_at)}
+                                {r.is_redeemed ? formatIST(r.updated_at) : "--"}
                             </TableCell>
                         </TableRow>
                     ))}
