@@ -45,7 +45,7 @@ export const useCafeRedeemsManual = (cafeId: string, userMobile?: string, type?:
 
 export const useConfirmRedeem = () =>
     useMutation({
-        mutationFn: async (data: { redeemId: string; redeemCode: string }) => {
+        mutationFn: async (data: { redeemId: string; redeemCode: string; user_id: string }) => {
             const res = await api.post("/redeems/confirm", data);
             return res.data;
         },

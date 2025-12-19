@@ -86,7 +86,8 @@ export default function ConfirmRedeemPage() {
         if (!redeemCode.trim()) return toast.error("Enter redeem code");
 
         try {
-            const res = await mutateAsync({ redeemId, redeemCode });
+            const res = await mutateAsync({ redeemId, redeemCode, user_id: selectedRedeem.user_id })
+            console.log(res)
             toast.success(res.message || "Redeem confirmed successfully!");
             setRedeemCode("");
             setOpen(false);
@@ -168,8 +169,8 @@ export default function ConfirmRedeemPage() {
                                     key={r.redeem_id}
                                     onClick={() => setSelectedRedeem(r)}
                                     className={`border cursor-pointer ${selectedRedeem?.redeem_id === r.redeem_id
-                                            ? "border-blue-500 bg-blue-50"
-                                            : "border-gray-200"
+                                        ? "border-blue-500 bg-blue-50"
+                                        : "border-gray-200"
                                         }`}
                                 >
                                     <CardContent className="py-3">
