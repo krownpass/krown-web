@@ -46,14 +46,14 @@ export default function CafeAdminLoginPage() {
         try {
             const res = await api.post("/cafes/login", form);
             const user = res.data?.data?.user;
-            const token = res.data?.data?.token;
+            const accessToken = res.data?.data?.token;
 
-            if (!user || !token) {
+            if (!user || !accessToken) {
                 toast.error("Login failed", { description: "Invalid credentials" });
                 return;
             }
 
-            setToken(token);
+            setToken(accessToken);
             toast.success("Login successful!");
 
             if (user.user_role === "cafe_admin") {
