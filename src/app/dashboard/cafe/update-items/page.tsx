@@ -95,6 +95,8 @@ export default function ItemsDashboardPage() {
         queryKey: ["items", user?.cafe_id],
         queryFn: async () => {
             const res = await api.get(`/cafes/cafe/${user?.cafe_id}`);
+
+
             return res.data?.data || [];
         },
         enabled: !!user?.cafe_id,
@@ -417,9 +419,9 @@ export default function ItemsDashboardPage() {
                                         <TableCell>{item.item_name}</TableCell>
                                         <TableCell>{item.category}</TableCell>
                                         <TableCell>
-                                            {item.image_url ? (
+                                            {item.cover_img ? (
                                                 <Image
-                                                    src={item.image_url}
+                                                    src={item.cover_img}
                                                     alt={item.item_name}
                                                     width={100}
                                                     height={100}
