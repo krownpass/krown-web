@@ -7,13 +7,11 @@ import Image from "next/image";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Upload, Trash2, ImageIcon, MenuIcon } from "lucide-react";
-
 import {
     UpdateCafeInput,
     UpdateCafeSchema,
@@ -21,7 +19,6 @@ import {
     SlotCategory,
     SlotTime,
 } from "@/lib/validators/schema";
-
 import { useCafeUser } from "@/hooks/useCafeUser";
 import { bebasNeue } from "@/lib/font";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -50,11 +47,11 @@ function nextCategoryName(existing: string[]) {
 // Constants
 const MAX_GALLERY_IMAGES = 15;
 const MAX_MENU_IMAGES = 5;
+const MAX_MAIN_IMAGES = 5;
 
 /* --------------------------------------- */
-/* COMPONENT */
+/* COMPONENT                               */
 /* --------------------------------------- */
-
 export default function UserUpdatePage() {
     const { user, loading } = useCafeUser(["cafe_admin"]);
     const queryClient = useQueryClient();
@@ -77,16 +74,16 @@ export default function UserUpdatePage() {
         },
     });
 
-    const getCategories = (): SlotCategory[] =>
-        form.getValues("categories") ?? [];
+    const getCategories = (): SlotCategory[] => form.getValues("categories") ?? [];
 
     /* ---------------- FETCH DATA ---------------- */
-
     const { data, isLoading } = useQuery({
         queryKey: ["cafe", user?.cafe_id],
         enabled: !!user?.cafe_id,
         queryFn: async () => {
             const cafeId = user?.cafe_id;
+            if (!cafeId) throw new Error("No cafe ID");
+
             const [cafeRes, imgRes, galleryRes, menuRes, slotsRes] = await Promise.all([
                 api.get(`/cafes/${cafeId}`),
                 api.get(`/cafes/${cafeId}/images`),
@@ -94,7 +91,6 @@ export default function UserUpdatePage() {
                 api.get(`/cafes/${cafeId}/menu-images`),
                 api.get(`/bookings/cafe-slots/${cafeId}`),
             ]);
-
             const categories = (slotsRes.data.categories ?? []).map((cat: any) => ({
                 name: cat.name,
                 hours: cat.hours.map((time: string) => {
@@ -103,18 +99,23 @@ export default function UserUpdatePage() {
                 }),
             })) as SlotCategory[];
 
+            const imgData = imgRes.data.data ?? imgRes.data ?? {};
+
             return {
-                cafe: cafeRes.data.data,
-                images: imgRes.data.data ?? [],
-                galleryImages: galleryRes.data.data ?? [],
-                menuImages: menuRes.data.data ?? [],
+                cafe: cafeRes.data.data ?? null,
+                images: Array.isArray(imgData.main?.images)
+                    ? imgData.main.images
+                    : Array.isArray(imgData.main)
+                        ? imgData.main
+                        : [],
+                galleryImages: Array.isArray(galleryRes.data.data) ? galleryRes.data.data : [],
+                menuImages: Array.isArray(menuRes.data.data) ? menuRes.data.data : [],
                 categories,
             };
         },
     });
 
     /* ---------------- SET FORM VALUES ---------------- */
-
     useEffect(() => {
         if (!data?.cafe) return;
 
@@ -136,11 +137,10 @@ export default function UserUpdatePage() {
         });
     }, [data, form]);
 
+    // Safe image arrays
     const images = data?.images ?? [];
     const galleryImages = data?.galleryImages ?? [];
     const menuImages = data?.menuImages ?? [];
-
-    /* ---------------- MUTATION ---------------- */
 
     const updateCafe = useMutation({
         mutationFn: async (payload: UpdateCafeInput) =>
@@ -151,116 +151,128 @@ export default function UserUpdatePage() {
         },
         onError: (error: unknown) => {
             const err = error as AxiosError<any>;
-            const message =
-                err.response?.data?.message || err.message || "Update failed";
+            const message = err.response?.data?.message || err.message || "Update failed";
             toast.error(message);
         },
     });
 
-    /* ---------------- IMAGE UPLOAD HANDLERS ---------------- */
-
+    /* ---------------- IMAGE UPLOAD / DELETE HANDLERS ---------------- */
     const handleGalleryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files?.length) return;
+        if (!e.target.files?.length || !user?.cafe_id) return;
         if (galleryImages.length >= MAX_GALLERY_IMAGES) {
-            return toast.error(`Max ${MAX_GALLERY_IMAGES} gallery images allowed`);
+            return toast.error(`Maximum ${MAX_GALLERY_IMAGES} gallery images allowed`);
         }
 
         const file = e.target.files[0];
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("cafe_id", user!.cafe_id);
+        formData.append("cafe_id", user.cafe_id);
         formData.append("file_name", file.name);
         formData.append("bucket", "krown-cafes");
 
         try {
             await api.post(`/cafes/gallery/upload`, formData);
-            toast.success("Gallery image uploaded!");
-            queryClient.invalidateQueries({ queryKey: ["cafe", user?.cafe_id] });
+            toast.success("Gallery image uploaded");
+            queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
         } catch (err: any) {
-            console.error("Gallery upload error:", err.response?.data || err);
+            console.error("Gallery upload failed:", err);
             toast.error(err.response?.data?.message || "Upload failed");
         }
-
-        // Reset input
         e.target.value = "";
     };
 
     const handleMenuUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!e.target.files?.length) return;
+        if (!e.target.files?.length || !user?.cafe_id) return;
         if (menuImages.length >= MAX_MENU_IMAGES) {
-            return toast.error(`Max ${MAX_MENU_IMAGES} menu images allowed`);
+            return toast.error(`Maximum ${MAX_MENU_IMAGES} menu images allowed`);
         }
 
         const file = e.target.files[0];
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("cafe_id", user!.cafe_id);
+        formData.append("cafe_id", user.cafe_id);
         formData.append("file_name", file.name);
         formData.append("bucket", "krown-cafes");
 
         try {
             await api.post(`/cafes/menu/upload`, formData);
-            toast.success("Menu image uploaded!");
-            queryClient.invalidateQueries({ queryKey: ["cafe", user?.cafe_id] });
+            toast.success("Menu image uploaded");
+            queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
         } catch (err: any) {
-            console.error("Menu upload error:", err.response?.data || err);
+            console.error("Menu upload failed:", err);
             toast.error(err.response?.data?.message || "Upload failed");
         }
-
-        // Reset input
         e.target.value = "";
     };
 
-    const handleGalleryDelete = async (img: any) => {
+    const handleGalleryDelete = async (img: { image_id: string; image_url: string }) => {
+        if (!user?.cafe_id) return;
         try {
             await api.delete(`/cafes/gallery/${img.image_id}`, {
                 data: {
-                    cafe_id: user!.cafe_id,
-                    path: img.image_url.split("krown-cafes/")[1],
+                    cafe_id: user.cafe_id,
+                    path: img.image_url.split("krown-cafes/")[1] || "",
                     bucket: "krown-cafes",
                 },
             });
-            toast.success("Gallery image deleted!");
-            queryClient.invalidateQueries({ queryKey: ["cafe", user?.cafe_id] });
+            toast.success("Gallery image deleted");
+            queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
         } catch (err: any) {
-            console.error("Delete error:", err.response?.data || err);
+            console.error("Gallery delete failed:", err);
             toast.error(err.response?.data?.message || "Delete failed");
         }
     };
 
-    const handleMenuDelete = async (img: any) => {
+    const handleMenuDelete = async (img: { image_id: string; image_url: string }) => {
+        if (!user?.cafe_id) return;
         try {
             await api.delete(`/cafes/menu/${img.image_id}`, {
                 data: {
-                    cafe_id: user!.cafe_id,
-                    path: img.image_url.split("krown-cafes/")[1],
+                    cafe_id: user.cafe_id,
+                    path: img.image_url.split("krown-cafes/")[1] || "",
                     bucket: "krown-cafes",
                 },
             });
-            toast.success("Menu image deleted!");
-            queryClient.invalidateQueries({ queryKey: ["cafe", user?.cafe_id] });
+            toast.success("Menu image deleted");
+            queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
         } catch (err: any) {
-            console.error("Delete error:", err.response?.data || err);
+            console.error("Menu delete failed:", err);
+            toast.error(err.response?.data?.message || "Delete failed");
+        }
+    };
+
+    const handleMainDelete = async (img: { image_id: string; image_url: string }) => {
+        if (!user?.cafe_id) return;
+        try {
+            await api.delete(`/cafes/images/${img.image_id}`, {
+                data: {
+                    cafe_id: user.cafe_id,
+                    path: img.image_url.split("krown-cafes/")[1] || "",
+                    bucket: "krown-cafes",
+                },
+            });
+            toast.success("Main image deleted");
+            queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
+        } catch (err: any) {
+            console.error("Main image delete failed:", err);
             toast.error(err.response?.data?.message || "Delete failed");
         }
     };
 
     /* ---------------- SUBMIT ---------------- */
-
-    const onSubmit = (vals: UpdateCafeInput) => {
+    const onSubmit = (values: UpdateCafeInput) => {
         if (!user?.cafe_id) {
             toast.error("Missing cafe ID");
             return;
         }
 
-        const normalizedCategories: SlotCategory[] | undefined =
-            vals.categories?.map((c) => ({
-                name: c.name.trim(),
-                hours: [...c.hours],
-            }));
+        const normalizedCategories = values.categories?.map((c) => ({
+            name: c.name.trim(),
+            hours: [...c.hours],
+        }));
 
         const payload: UpdateCafeInput = {
-            ...vals,
+            ...values,
             cafe_id: user.cafe_id,
             categories: normalizedCategories,
         };
@@ -268,8 +280,7 @@ export default function UserUpdatePage() {
         updateCafe.mutate(payload);
     };
 
-    if (loading || isLoading)
-        return <p className="text-center mt-10">Loading...</p>;
+    if (loading || isLoading) return <p className="text-center mt-10">Loading...</p>;
     if (!user) return null;
 
     form.watch("categories");
@@ -282,9 +293,7 @@ export default function UserUpdatePage() {
         >
             {/* LEFT SIDE - FORM */}
             <div className="space-y-6">
-                <h2 className={`${bebasNeue.className} text-3xl`}>
-                    Update Café Details
-                </h2>
+                <h2 className={`${bebasNeue.className} text-3xl`}>Update Café Details</h2>
 
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     {[
@@ -296,11 +305,11 @@ export default function UserUpdatePage() {
                     ].map(({ id, label }) => (
                         <div key={id}>
                             <Label>{label}</Label>
-                            <Input {...form.register(id as any)} />
+                            <Input {...form.register(id as keyof UpdateCafeInput)} />
                         </div>
                     ))}
 
-                    {/* Latitude & Longitude */}
+                    {/* Lat / Lng */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <Label>Latitude</Label>
@@ -326,48 +335,39 @@ export default function UserUpdatePage() {
                     <div>
                         <Label>Working Days</Label>
                         <div className="grid grid-cols-3 gap-3 mt-2">
-                            {(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as Day[]).map(
-                                (day) => {
-                                    const curr = form.getValues("working_days") ?? [];
-                                    const selected = curr.includes(day);
-                                    return (
-                                        <button
-                                            key={day}
-                                            type="button"
-                                            onClick={() => {
-                                                const updated = selected
-                                                    ? curr.filter((d) => d !== day)
-                                                    : [...curr, day];
-                                                form.setValue("working_days", updated, {
-                                                    shouldValidate: true,
-                                                });
-                                            }}
-                                            className={`px-3 py-2 rounded-lg text-sm border ${selected
-                                                    ? "bg-black text-white"
-                                                    : "bg-white text-gray-700"
-                                                }`}
-                                        >
-                                            {day}
-                                        </button>
-                                    );
-                                }
-                            )}
+                            {(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as Day[]).map((day) => {
+                                const curr = form.watch("working_days") ?? [];
+                                const selected = curr.includes(day);
+                                return (
+                                    <button
+                                        key={day}
+                                        type="button"
+                                        onClick={() => {
+                                            const updated = selected ? curr.filter((d) => d !== day) : [...curr, day];
+                                            form.setValue("working_days", updated, { shouldValidate: true });
+                                        }}
+                                        className={`px-3 py-2 rounded-lg text-sm border ${selected ? "bg-black text-white" : "bg-white text-gray-700"
+                                            }`}
+                                    >
+                                        {day}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
-                    {/* Availability Toggle */}
+                    {/* Availability */}
                     <div className="mt-4">
                         <Label>Is Available?</Label>
                         <div className="flex items-center gap-3 mt-1">
                             <button
                                 type="button"
                                 className={`px-4 py-2 rounded-md border ${form.watch("is_available")
-                                        ? "bg-green-600 text-white"
-                                        : "bg-red-600 text-white"
+                                    ? "bg-green-600 text-white border-green-700"
+                                    : "bg-red-600 text-white border-red-700"
                                     }`}
                                 onClick={() => {
-                                    const current = form.getValues("is_available") ?? true;
-                                    form.setValue("is_available", !current, {
+                                    form.setValue("is_available", !form.watch("is_available"), {
                                         shouldValidate: true,
                                     });
                                 }}
@@ -380,16 +380,12 @@ export default function UserUpdatePage() {
                     {/* Slot Categories */}
                     <div className="mt-6 space-y-4">
                         <Label>Time Slot Categories</Label>
-
                         <Button
                             type="button"
                             onClick={() => {
                                 const current = getCategories();
                                 const newName = nextCategoryName(current.map((c) => c.name));
-                                form.setValue("categories", [
-                                    ...current,
-                                    { name: newName, hours: [] },
-                                ]);
+                                form.setValue("categories", [...current, { name: newName, hours: [] }]);
                             }}
                         >
                             Add Slot Category
@@ -411,14 +407,13 @@ export default function UserUpdatePage() {
                                             form.setValue("categories", all);
                                         }}
                                     />
-
                                     <button
-                                        className="text-red-500"
+                                        className="text-red-500 hover:text-red-700"
                                         type="button"
                                         onClick={() => {
                                             form.setValue(
                                                 "categories",
-                                                getCategories().filter((_c, i) => i !== index)
+                                                getCategories().filter((_, i) => i !== index)
                                             );
                                         }}
                                     >
@@ -426,7 +421,6 @@ export default function UserUpdatePage() {
                                     </button>
                                 </div>
 
-                                {/* Hours display */}
                                 <div className="flex flex-wrap gap-2">
                                     {cat.hours.map((h, i) => (
                                         <motion.div
@@ -438,9 +432,7 @@ export default function UserUpdatePage() {
                                                 type="button"
                                                 onClick={() => {
                                                     const all = [...getCategories()];
-                                                    all[index].hours = all[index].hours.filter(
-                                                        (_v, vi) => vi !== i
-                                                    );
+                                                    all[index].hours = all[index].hours.filter((_, vi) => vi !== i);
                                                     form.setValue("categories", all);
                                                 }}
                                             >
@@ -450,43 +442,27 @@ export default function UserUpdatePage() {
                                     ))}
                                 </div>
 
-                                {/* Add time slot */}
-                                <div className="flex gap-3">
-                                    <select
-                                        id={`hour_${index}`}
-                                        className="border rounded-md px-2 py-1 text-sm"
-                                        defaultValue=""
-                                    >
+                                <div className="flex gap-3 flex-wrap">
+                                    <select id={`hour_${index}`} className="border rounded px-2 py-1 text-sm" defaultValue="">
                                         <option value="" disabled>
                                             Hour
                                         </option>
                                         {Array.from({ length: 12 }, (_, i) => i + 1).map((hr) => (
-                                            <option value={hr} key={hr}>
+                                            <option key={hr} value={hr}>
                                                 {hr}
                                             </option>
                                         ))}
                                     </select>
 
-                                    <select
-                                        id={`minute_${index}`}
-                                        className="border rounded-md px-2 py-1 text-sm"
-                                        defaultValue="00"
-                                    >
-                                        {[
-                                            "00", "05", "10", "15", "20", "25",
-                                            "30", "35", "40", "45", "50", "55",
-                                        ].map((m) => (
+                                    <select id={`minute_${index}`} className="border rounded px-2 py-1 text-sm" defaultValue="00">
+                                        {["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map((m) => (
                                             <option key={m} value={m}>
                                                 {m}
                                             </option>
                                         ))}
                                     </select>
 
-                                    <select
-                                        id={`period_${index}`}
-                                        className="border rounded-md px-2 py-1 text-sm"
-                                        defaultValue="AM"
-                                    >
+                                    <select id={`period_${index}`} className="border rounded px-2 py-1 text-sm" defaultValue="AM">
                                         <option value="AM">AM</option>
                                         <option value="PM">PM</option>
                                     </select>
@@ -495,36 +471,23 @@ export default function UserUpdatePage() {
                                         type="button"
                                         size="sm"
                                         onClick={() => {
-                                            const hrEl = document.getElementById(
-                                                `hour_${index}`
-                                            ) as HTMLSelectElement;
-                                            const minEl = document.getElementById(
-                                                `minute_${index}`
-                                            ) as HTMLSelectElement;
-                                            const prEl = document.getElementById(
-                                                `period_${index}`
-                                            ) as HTMLSelectElement;
+                                            const hrEl = document.getElementById(`hour_${index}`) as HTMLSelectElement;
+                                            const minEl = document.getElementById(`minute_${index}`) as HTMLSelectElement;
+                                            const prEl = document.getElementById(`period_${index}`) as HTMLSelectElement;
 
-                                            if (!hrEl.value) return toast.error("Choose hour");
+                                            if (!hrEl.value) return toast.error("Select hour");
 
-                                            const hour24 = to24Hour(
-                                                Number(hrEl.value),
-                                                prEl.value as "AM" | "PM"
-                                            );
+                                            const hour24 = to24Hour(Number(hrEl.value), prEl.value as "AM" | "PM");
                                             const minute = Number(minEl.value);
 
                                             const all = [...getCategories()];
+                                            const exists = all[index].hours.some((h) => h.hour === hour24 && h.minute === minute);
 
-                                            const exists = all[index].hours.some(
-                                                (h) => h.hour === hour24 && h.minute === minute
-                                            );
-                                            if (exists) return toast.error("Time already exists!");
+                                            if (exists) return toast.error("This time already exists in category");
 
                                             all[index].hours.push({ hour: hour24, minute });
                                             all[index].hours.sort((a, b) =>
-                                                a.hour === b.hour
-                                                    ? a.minute - b.minute
-                                                    : a.hour - b.hour
+                                                a.hour === b.hour ? a.minute - b.minute : a.hour - b.hour
                                             );
 
                                             form.setValue("categories", all);
@@ -543,21 +506,19 @@ export default function UserUpdatePage() {
 
                     <Separator />
 
-                    <Button type="submit" className="w-full">
-                        Save Changes
+                    <Button type="submit" className="w-full" disabled={updateCafe.isPending}>
+                        {updateCafe.isPending ? "Saving..." : "Save Changes"}
                     </Button>
                 </form>
             </div>
 
             {/* RIGHT SIDE - IMAGES */}
             <div className="space-y-8">
-                {/* COVER IMAGE SECTION */}
+                {/* Cover Image */}
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
                         <h2 className={`${bebasNeue.className} text-2xl`}>Cover Image</h2>
-                        <span className="text-sm text-gray-500">
-                            {data?.cafe?.cover_img ? "1/1" : "0/1"}
-                        </span>
+                        <span className="text-sm text-gray-500">{data?.cafe?.cover_img ? "1/1" : "0/1"}</span>
                     </div>
 
                     {!data?.cafe?.cover_img ? (
@@ -574,21 +535,18 @@ export default function UserUpdatePage() {
                                 className="hidden"
                                 accept="image/*"
                                 onChange={async (e) => {
-                                    if (!e.target.files?.length) return;
-
+                                    if (!e.target.files?.length || !user?.cafe_id) return;
                                     const file = e.target.files[0];
                                     const formData = new FormData();
                                     formData.append("file", file);
-                                    formData.append("cafe_id", user!.cafe_id);
+                                    formData.append("cafe_id", user.cafe_id);
                                     formData.append("file_name", file.name);
                                     formData.append("bucket", "krown-cafes");
 
                                     try {
                                         await api.post(`/cafes/cover/upload`, formData);
-                                        toast.success("Cover Image Uploaded!");
-                                        queryClient.invalidateQueries({
-                                            queryKey: ["cafe", user?.cafe_id],
-                                        });
+                                        toast.success("Cover image uploaded");
+                                        queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
                                     } catch (err: any) {
                                         toast.error(err.response?.data?.message || "Upload failed");
                                     }
@@ -596,36 +554,31 @@ export default function UserUpdatePage() {
                             />
                         </>
                     ) : (
-                        <motion.div
-                            layout
-                            className="relative group w-full max-w-sm"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                        >
+                        <motion.div layout className="relative group w-full max-w-sm">
                             <Image
                                 src={data.cafe.cover_img}
                                 width={320}
                                 height={180}
                                 className="rounded-lg object-cover w-full h-44"
-                                alt="cover"
+                                alt="Cover"
                             />
                             <button
-                                onClick={() =>
-                                    api
-                                        .delete(`/cafes/${user!.cafe_id}/cover`, {
+                                onClick={async () => {
+                                    if (!user?.cafe_id) return;
+                                    try {
+                                        await api.delete(`/cafes/${user.cafe_id}/cover`, {
                                             data: {
-                                                cafe_id: user!.cafe_id,
-                                                path: data.cafe.cover_img.split("krown-cafes/")[1],
+                                                cafe_id: user.cafe_id,
+                                                path: data.cafe.cover_img.split("krown-cafes/")[1] || "",
                                                 bucket: "krown-cafes",
                                             },
-                                        })
-                                        .then(() => {
-                                            toast.success("Cover Image Deleted!");
-                                            queryClient.invalidateQueries({
-                                                queryKey: ["cafe", user?.cafe_id],
-                                            });
-                                        })
-                                }
+                                        });
+                                        toast.success("Cover image deleted");
+                                        queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
+                                    } catch (err: any) {
+                                        toast.error("Failed to delete cover image");
+                                    }
+                                }}
                                 className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                             >
                                 <Trash2 size={16} />
@@ -636,15 +589,15 @@ export default function UserUpdatePage() {
 
                 <Separator />
 
-                {/* GALLERY IMAGES SECTION */}
+                {/* Gallery */}
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                             <ImageIcon size={20} />
-                            <h2 className={`${bebasNeue.className} text-2xl`}>Gallery Images</h2>
+                            <h2 className={`${bebasNeue.className} text-2xl`}>Gallery</h2>
                         </div>
                         <span className="text-sm text-gray-500">
-                            {galleryImages.length}/{MAX_GALLERY_IMAGES}
+                            {galleryImages.length} / {MAX_GALLERY_IMAGES}
                         </span>
                     </div>
 
@@ -667,17 +620,11 @@ export default function UserUpdatePage() {
                     )}
 
                     {galleryImages.length === 0 ? (
-                        <p className="text-gray-400 text-sm">No gallery images uploaded yet.</p>
+                        <p className="text-gray-400 text-sm">No gallery images yet.</p>
                     ) : (
                         <div className="grid grid-cols-3 gap-3">
                             {galleryImages.map((img: any) => (
-                                <motion.div
-                                    key={img.image_id}
-                                    layout
-                                    className="relative group"
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                >
+                                <motion.div key={img.image_id} layout className="relative group">
                                     <Image
                                         src={img.image_url}
                                         width={150}
@@ -687,7 +634,7 @@ export default function UserUpdatePage() {
                                     />
                                     <button
                                         onClick={() => handleGalleryDelete(img)}
-                                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100"
                                     >
                                         <Trash2 size={12} />
                                     </button>
@@ -699,15 +646,15 @@ export default function UserUpdatePage() {
 
                 <Separator />
 
-                {/* MENU IMAGES SECTION */}
+                {/* Menu */}
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
                             <MenuIcon size={20} />
-                            <h2 className={`${bebasNeue.className} text-2xl`}>Menu Images</h2>
+                            <h2 className={`${bebasNeue.className} text-2xl`}>Menu</h2>
                         </div>
                         <span className="text-sm text-gray-500">
-                            {menuImages.length}/{MAX_MENU_IMAGES}
+                            {menuImages.length} / {MAX_MENU_IMAGES}
                         </span>
                     </div>
 
@@ -730,17 +677,11 @@ export default function UserUpdatePage() {
                     )}
 
                     {menuImages.length === 0 ? (
-                        <p className="text-gray-400 text-sm">No menu images uploaded yet.</p>
+                        <p className="text-gray-400 text-sm">No menu images yet.</p>
                     ) : (
                         <div className="grid grid-cols-2 gap-3">
                             {menuImages.map((img: any) => (
-                                <motion.div
-                                    key={img.image_id}
-                                    layout
-                                    className="relative group"
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                >
+                                <motion.div key={img.image_id} layout className="relative group">
                                     <Image
                                         src={img.image_url}
                                         width={200}
@@ -750,7 +691,7 @@ export default function UserUpdatePage() {
                                     />
                                     <button
                                         onClick={() => handleMenuDelete(img)}
-                                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100"
                                     >
                                         <Trash2 size={12} />
                                     </button>
@@ -762,14 +703,16 @@ export default function UserUpdatePage() {
 
                 <Separator />
 
-                {/* MAIN IMAGES SECTION (Original) */}
+                {/* Main Images */}
                 <div className="space-y-4">
                     <div className="flex justify-between items-center">
                         <h2 className={`${bebasNeue.className} text-2xl`}>Main Images</h2>
-                        <span className="text-sm text-gray-500">{images.length}/5</span>
+                        <span className="text-sm text-gray-500">
+                            {images.length} / {MAX_MAIN_IMAGES}
+                        </span>
                     </div>
 
-                    {images.length < 5 && (
+                    {images.length < MAX_MAIN_IMAGES && (
                         <>
                             <Label
                                 htmlFor="mainUpload"
@@ -783,67 +726,50 @@ export default function UserUpdatePage() {
                                 className="hidden"
                                 accept="image/*"
                                 onChange={(e) => {
-                                    if (!e.target.files?.length) return;
-                                    if (images.length >= 5) return toast.error("Max 5 images");
+                                    if (!e.target.files?.length || !user?.cafe_id) return;
+                                    if (images.length >= MAX_MAIN_IMAGES) {
+                                        return toast.error(`Maximum ${MAX_MAIN_IMAGES} main images allowed`);
+                                    }
 
                                     const file = e.target.files[0];
                                     const formData = new FormData();
                                     formData.append("file", file);
-                                    formData.append("cafe_id", user!.cafe_id);
+                                    formData.append("cafe_id", user.cafe_id);
                                     formData.append("file_name", file.name);
                                     formData.append("bucket", "krown-cafes");
 
                                     api
                                         .post(`/cafes/images/upload`, formData)
                                         .then(() => {
-                                            toast.success("Uploaded!");
-                                            queryClient.invalidateQueries({
-                                                queryKey: ["cafe", user?.cafe_id],
-                                            });
+                                            toast.success("Main image uploaded");
+                                            queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
                                         })
-                                        .catch(() => toast.error("Upload failed"));
+                                        .catch((err: any) => {
+                                            toast.error(err.response?.data?.message || "Upload failed");
+                                        });
+
+                                    e.target.value = "";
                                 }}
                             />
                         </>
                     )}
 
                     {images.length === 0 ? (
-                        <p className="text-gray-400 text-sm">No main images uploaded yet.</p>
+                        <p className="text-gray-400 text-sm">No main images yet.</p>
                     ) : (
                         <div className="grid grid-cols-2 gap-3">
                             {images.map((img: any) => (
-                                <motion.div
-                                    key={img.image_id}
-                                    layout
-                                    className="relative group"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                >
+                                <motion.div key={img.image_id} layout className="relative group">
                                     <Image
                                         src={img.image_url}
                                         width={200}
                                         height={140}
                                         className="rounded-md object-cover w-full h-32"
-                                        alt=""
+                                        alt="main image"
                                     />
                                     <button
-                                        onClick={() =>
-                                            api
-                                                .delete(`/cafes/images/${img.image_id}`, {
-                                                    data: {
-                                                        cafe_id: user!.cafe_id,
-                                                        path: img.image_url.split("krown-cafes/")[1],
-                                                        bucket: "krown-cafes",
-                                                    },
-                                                })
-                                                .then(() => {
-                                                    toast.success("Deleted");
-                                                    queryClient.invalidateQueries({
-                                                        queryKey: ["cafe", user?.cafe_id],
-                                                    });
-                                                })
-                                        }
-                                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={() => handleMainDelete(img)}
+                                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100"
                                     >
                                         <Trash2 size={12} />
                                     </button>
