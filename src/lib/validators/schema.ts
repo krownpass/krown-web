@@ -57,6 +57,8 @@ export const UpdateCafeSchema = z.object({
 
     cafe_name: z.string().optional(),
     cafe_location: z.string().optional(),
+    cafe_city: z.string().optional(),
+    cafe_area: z.string().optional(),
     cafe_description: z.string().optional(),
 
     cafe_mobile_no: z.string().optional(),

@@ -60,6 +60,8 @@ export default function UserUpdatePage() {
     defaultValues: {
       cafe_name: "",
       cafe_location: "",
+      cafe_city: "",
+      cafe_area: "",
       cafe_description: "",
       cafe_mobile_no: "",
       cafe_upi_id: "",
@@ -115,6 +117,8 @@ export default function UserUpdatePage() {
     form.reset({
       cafe_name: backend.cafe_name ?? "",
       cafe_location: backend.cafe_location ?? "",
+      cafe_city: backend.city ?? "",
+      cafe_area: backend.area ?? "",
       cafe_description: backend.cafe_description ?? "",
       cafe_mobile_no: backend.cafe_mobile_no ?? "",
       cafe_upi_id: backend.cafe_upi_id ?? "",
@@ -128,7 +132,7 @@ export default function UserUpdatePage() {
     });
   }, [data, form]);
 
-  const images = data?.images ?? [];
+  const images = Array.isArray(data?.images) ? data.images : [];
 
   /* ---------------- MUTATION ---------------- */
 
@@ -195,6 +199,8 @@ export default function UserUpdatePage() {
           {[
             { id: "cafe_name", label: "Café Name" },
             { id: "cafe_location", label: "Location" },
+            { id: "cafe_city", label: "City" },
+            { id: "cafe_area", label: "Area" },
             { id: "cafe_description", label: "Description" },
             { id: "cafe_mobile_no", label: "Mobile No" },
             { id: "cafe_upi_id", label: "UPI ID" },
