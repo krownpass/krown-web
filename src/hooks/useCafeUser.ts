@@ -1,6 +1,4 @@
-
 "use client";
-
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
@@ -21,8 +19,12 @@ export function useCafeUser(requiredRoles?: ("cafe_admin" | "cafe_staff")[]) {
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
+    const rolesKey = requiredRoles?.join(",") ?? "";
+
     useEffect(() => {
+
         const token = getToken();
+        console.log("[useCafeUser] Token from storage:", token ? `${token.substring(0, 30)}...` : "NULL");
 
         if (!token) {
             router.replace("/login");
@@ -36,7 +38,8 @@ export function useCafeUser(requiredRoles?: ("cafe_admin" | "cafe_staff")[]) {
                 const u = res.data?.data;
                 if (!u) throw new Error("Invalid user data");
 
-                if (requiredRoles && !requiredRoles.includes(u.user_role)) {
+
+                if (rolesKey && !rolesKey.split(",").includes(u.user_role)) {
                     toast.error("Access denied");
                     clearToken();
                     router.replace("/not-authorized");
@@ -47,21 +50,18 @@ export function useCafeUser(requiredRoles?: ("cafe_admin" | "cafe_staff")[]) {
             })
             .catch((err) => {
                 toast.dismiss();
-
                 const status = err?.response?.status;
-
-                // Clear token ONLY if token is actually invalid
                 if (status === 401) {
                     clearToken();
                     router.replace("/login");
                     return;
                 }
-
-                // For server/network issues, DON'T logout user
                 toast.error("Server unavailable. Please try again.");
             })
-            .finally(() => setLoading(false));
-    }, [router, requiredRoles]);
+            .finally(() => {
+                setLoading(false);
+            });
+    }, [router, rolesKey]);
 
     return { user, loading };
 }
