@@ -87,7 +87,6 @@ export default function ConfirmRedeemPage() {
 
         try {
             const res = await mutateAsync({ redeemId, redeemCode, user_id: selectedRedeem.user_id })
-            console.log(res)
             toast.success(res.message || "Redeem confirmed successfully!");
             setRedeemCode("");
             setOpen(false);

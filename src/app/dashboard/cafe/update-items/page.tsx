@@ -37,6 +37,8 @@ import {
     Save,
     X,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { useMutation } from "@tanstack/react-query";
 import {
     Select,
     SelectTrigger,
@@ -55,6 +57,7 @@ const UpdateItemSchema = z.object({
     category: z.string().min(2, "Category required"),
     price: z.number().positive("Price must be greater than 0"),
     recommended: z.boolean().optional(),
+    is_redeemable: z.boolean().optional(),
 });
 
 type ItemInput = z.infer<typeof UpdateItemSchema>;
@@ -66,6 +69,7 @@ type Item = {
     category: string;
     price: number;
     recommended: boolean;
+    is_redeemable: boolean;
     image_url?: string | null;
     image_id?: number;
 };
@@ -87,6 +91,27 @@ export default function ItemsDashboardPage() {
     const [tab, setTab] = useState("create");
     const [query, setQuery] = useState("");
     const [editingId, setEditingId] = useState<number | null>(null);
+    const [pendingFlags, setPendingFlags] = useState<Record<string, boolean>>({});
+
+    const flagMutation = useMutation({
+        mutationFn: async ({ itemId, flag, value }: { itemId: number; flag: "recommended" | "is_redeemable"; value: boolean }) => {
+            return api.patch(`/cafes/items/${itemId}/flags`, { [flag]: value });
+        },
+        onSuccess: (_, { itemId, flag }) => {
+            setPendingFlags((prev) => { const n = { ...prev }; delete n[`${itemId}_${flag}`]; return n; });
+            queryClient.invalidateQueries({ queryKey: ["items"] });
+            toast.success("Updated");
+        },
+        onError: (_, { itemId, flag }) => {
+            setPendingFlags((prev) => { const n = { ...prev }; delete n[`${itemId}_${flag}`]; return n; });
+            toast.error("Failed to update");
+        },
+    });
+
+    const handleFlagToggle = (itemId: number, flag: "recommended" | "is_redeemable", current: boolean) => {
+        setPendingFlags((prev) => ({ ...prev, [`${itemId}_${flag}`]: true }));
+        flagMutation.mutate({ itemId, flag, value: !current });
+    };
 
     const debouncedQuery = useDebouncedValue(query);
 
@@ -120,6 +145,7 @@ export default function ItemsDashboardPage() {
             category: "",
             price: 0,
             recommended: false,
+            is_redeemable: false,
         },
     });
 
@@ -277,6 +303,23 @@ export default function ItemsDashboardPage() {
                                 </Select>
                             </div>
 
+                            <div>
+                                <Label>Redeemable</Label>
+                                <Select
+                                    onValueChange={(v) =>
+                                        form.setValue("is_redeemable", v === "true")
+                                    }
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="true">Yes</SelectItem>
+                                        <SelectItem value="false">No</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                             <div className="md:col-span-2">
                                 <Label>Description</Label>
                                 <Textarea rows={3} {...form.register("item_description")} />
@@ -328,7 +371,8 @@ export default function ItemsDashboardPage() {
                                     <TableHead>Name</TableHead>
                                     <TableHead>Category</TableHead>
                                     <TableHead>Price</TableHead>
-                                    <TableHead>Recommended</TableHead>
+                                    <TableHead>Krown Recommends</TableHead>
+                                    <TableHead>Redeemable</TableHead>
                                     <TableHead>Description</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
@@ -348,13 +392,18 @@ export default function ItemsDashboardPage() {
                                             <TableCell>{item.category}</TableCell>
                                             <TableCell>₹{item.price}</TableCell>
                                             <TableCell>
-                                                {item.recommended ? (
-                                                    <span className="text-green-600 font-semibold">
-                                                        Yes
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-red-600 font-semibold">No</span>
-                                                )}
+                                                <Switch
+                                                    checked={item.recommended ?? false}
+                                                    disabled={!!pendingFlags[`${item.item_id}_recommended`]}
+                                                    onCheckedChange={() => handleFlagToggle(item.item_id, "recommended", item.recommended ?? false)}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Switch
+                                                    checked={item.is_redeemable ?? false}
+                                                    disabled={!!pendingFlags[`${item.item_id}_is_redeemable`]}
+                                                    onCheckedChange={() => handleFlagToggle(item.item_id, "is_redeemable", item.is_redeemable ?? false)}
+                                                />
                                             </TableCell>
                                             <TableCell>{item.item_description}</TableCell>
                                             <TableCell className="text-right">

@@ -19,7 +19,6 @@ export function formatIST(dateString?: string): string {
             timeZone: "Asia/Kolkata",
         }).format(date);
     } catch (error) {
-        console.error("Error formatting date:", error);
         return "--";
     }
 }

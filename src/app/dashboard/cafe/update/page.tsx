@@ -180,7 +180,6 @@ export default function UserUpdatePage() {
             toast.success("Gallery image uploaded");
             queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
         } catch (err: any) {
-            console.error("Gallery upload failed:", err);
             toast.error(err.response?.data?.message || "Upload failed");
         }
         e.target.value = "";
@@ -204,7 +203,6 @@ export default function UserUpdatePage() {
             toast.success("Menu image uploaded");
             queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
         } catch (err: any) {
-            console.error("Menu upload failed:", err);
             toast.error(err.response?.data?.message || "Upload failed");
         }
         e.target.value = "";
@@ -223,7 +221,6 @@ export default function UserUpdatePage() {
             toast.success("Gallery image deleted");
             queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
         } catch (err: any) {
-            console.error("Gallery delete failed:", err);
             toast.error(err.response?.data?.message || "Delete failed");
         }
     };
@@ -241,7 +238,6 @@ export default function UserUpdatePage() {
             toast.success("Menu image deleted");
             queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
         } catch (err: any) {
-            console.error("Menu delete failed:", err);
             toast.error(err.response?.data?.message || "Delete failed");
         }
     };
@@ -259,7 +255,6 @@ export default function UserUpdatePage() {
             toast.success("Main image deleted");
             queryClient.invalidateQueries({ queryKey: ["cafe", user.cafe_id] });
         } catch (err: any) {
-            console.error("Main image delete failed:", err);
             toast.error(err.response?.data?.message || "Delete failed");
         }
     };

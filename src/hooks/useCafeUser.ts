@@ -24,8 +24,6 @@ export function useCafeUser(requiredRoles?: ("cafe_admin" | "cafe_staff")[]) {
     useEffect(() => {
 
         const token = getToken();
-        console.log("[useCafeUser] Token from storage:", token ? `${token.substring(0, 30)}...` : "NULL");
-
         if (!token) {
             router.replace("/login");
             setLoading(false);

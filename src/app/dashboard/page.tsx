@@ -42,7 +42,9 @@ import {
     RefreshCcw,
     ChevronRight,
     Search,
+    Wine,
 } from "lucide-react";
+import Link from "next/link";
 
 import { useCafeUser } from "@/hooks/useCafeUser";
 import { ExtendedRange, useCafeKrownAnalytics } from "@/hooks/useCafeAnalytics";
@@ -156,6 +158,23 @@ export default function CafeDashboardPage() {
                         Footfall, Revenue, Redemptions & Customer insights
                     </p>
                 </div>
+
+                {/* QUICK ACTION */}
+                <Link
+                    href="/dashboard/cafe/redeem"
+                    className="flex items-center justify-between px-5 py-4 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 hover:border-slate-500 transition-all group"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/10">
+                            <Wine className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="text-white font-semibold text-sm">Redeem a Drink</p>
+                            <p className="text-slate-400 text-xs mt-0.5">Scan & confirm a customer's redemption</p>
+                        </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
+                </Link>
 
                 {/* FILTERS */}
                 <div className="flex items-center gap-2 pt-2">
