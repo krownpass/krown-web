@@ -11,10 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Upload, Trash2, ImageIcon, MenuIcon } from "lucide-react";
+import { Upload, Trash2, ImageIcon, MenuIcon, Plus, X } from "lucide-react";
 import {
     UpdateCafeInput,
     UpdateCafeSchema,
+    CafeOffer,
     Day,
     SlotCategory,
     SlotTime,
@@ -73,6 +74,8 @@ export default function UserUpdatePage() {
             working_days: [],
             is_available: true,
             categories: [],
+            offers: [],
+            themes: [],
         },
     });
 
@@ -86,12 +89,13 @@ export default function UserUpdatePage() {
             const cafeId = user?.cafe_id;
             if (!cafeId) throw new Error("No cafe ID");
 
-            const [cafeRes, imgRes, galleryRes, menuRes, slotsRes] = await Promise.all([
+            const [cafeRes, imgRes, galleryRes, menuRes, slotsRes, themesRes] = await Promise.all([
                 api.get(`/cafes/${cafeId}`),
                 api.get(`/cafes/${cafeId}/images`),
                 api.get(`/cafes/${cafeId}/gallery`),
                 api.get(`/cafes/${cafeId}/menu-images`),
                 api.get(`/bookings/cafe-slots/${cafeId}`),
+                api.get(`/cafes/themes`),
             ]);
 
             const categories = (slotsRes.data.categories ?? []).map((cat: any) => ({
@@ -114,6 +118,7 @@ export default function UserUpdatePage() {
                 galleryImages: Array.isArray(galleryRes.data.data) ? galleryRes.data.data : [],
                 menuImages: Array.isArray(menuRes.data.data) ? menuRes.data.data : [],
                 categories,
+                availableThemes: (themesRes.data.data ?? []) as { name: string; display_name: string; description: string }[],
             };
         },
     });
@@ -139,6 +144,8 @@ export default function UserUpdatePage() {
             working_days: backend.working_days || [],
             is_available: backend.is_available ?? true,
             categories: data.categories ?? [],
+            offers: backend.offers ?? [],
+            themes: backend.themes ?? [],
         });
     }, [data, form]);
 
@@ -550,6 +557,99 @@ export default function UserUpdatePage() {
                                 </div>
                             </motion.div>
                         ))}
+                    </div>
+
+                    <Separator />
+
+                    {/* Themes */}
+                    <div className="space-y-3">
+                        <Label>Cafe Themes</Label>
+                        <p className="text-xs text-gray-500">Select all that apply. New themes are created by Krown admin.</p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                            {(data?.availableThemes ?? []).map((theme) => {
+                                const selected = (form.watch("themes") ?? []).includes(theme.name);
+                                return (
+                                    <button
+                                        key={theme.name}
+                                        type="button"
+                                        title={theme.description}
+                                        onClick={() => {
+                                            const curr = form.getValues("themes") ?? [];
+                                            form.setValue(
+                                                "themes",
+                                                selected ? curr.filter((t) => t !== theme.name) : [...curr, theme.name],
+                                                { shouldValidate: true }
+                                            );
+                                        }}
+                                        className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                                            selected ? "bg-black text-white border-black" : "bg-white text-gray-700 border-gray-300 hover:border-gray-500"
+                                        }`}
+                                    >
+                                        {theme.display_name}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* Special Offers */}
+                    <div className="space-y-3">
+                        <Label>Special Offers</Label>
+                        <p className="text-xs text-gray-500">Each offer has a title (e.g. "Student Discount") and a description (e.g. "10% off with valid ID").</p>
+
+                        {/* Existing offer cards */}
+                        <div className="space-y-2">
+                            {(form.watch("offers") ?? []).map((offer: CafeOffer, i: number) => (
+                                <div key={i} className="flex items-start gap-2 bg-gray-50 border rounded-xl p-3">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-sm text-gray-900 truncate">{offer.title}</p>
+                                        <p className="text-xs text-gray-500 mt-0.5 truncate">{offer.description}</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const curr = form.getValues("offers") ?? [];
+                                            form.setValue("offers", curr.filter((_, idx) => idx !== i));
+                                        }}
+                                        className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0 mt-0.5"
+                                    >
+                                        <X size={15} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Add offer — title + description */}
+                        <div className="border rounded-xl p-3 space-y-2 bg-white">
+                            <Input
+                                id="offerTitle"
+                                placeholder="Title — e.g. Student Discount"
+                            />
+                            <Input
+                                id="offerDesc"
+                                placeholder="Description — e.g. Enjoy 10% off with a valid ID"
+                            />
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => {
+                                    const titleEl = document.getElementById("offerTitle") as HTMLInputElement;
+                                    const descEl = document.getElementById("offerDesc") as HTMLInputElement;
+                                    const title = titleEl.value.trim();
+                                    const description = descEl.value.trim();
+                                    if (!title) return;
+                                    const curr = form.getValues("offers") ?? [];
+                                    form.setValue("offers", [...curr, { title, description }]);
+                                    titleEl.value = "";
+                                    descEl.value = "";
+                                }}
+                            >
+                                <Plus size={14} className="mr-1" /> Add Offer
+                            </Button>
+                        </div>
                     </div>
 
                     <Separator />

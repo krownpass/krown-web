@@ -67,8 +67,12 @@ export const UpdateCafeSchema = z.object({
     working_days: z.array(DayEnum).optional(),
     is_available: z.boolean().optional(),
     categories: z.array(SlotCategorySchema).optional(),
+    offers: z.array(z.object({ title: z.string(), description: z.string() })).optional(),
+    themes: z.array(z.string()).optional(),
 });
 export type UpdateCafeInput = z.infer<typeof UpdateCafeSchema>;
+
+export type CafeOffer = { title: string; description: string };
 
 export type CreateCafeInput = z.infer<typeof CreateCafeSchema>;
 

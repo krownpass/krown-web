@@ -3,8 +3,8 @@ import api from "@/lib/api";
 import { useQuery, useMutation } from "@tanstack/react-query";
 export const useInitiateRedeem = () =>
     useMutation({
-        mutationFn: async (data: any) => {
-            const res = await api.post("/redeems", data);
+        mutationFn: async (data: { cafeId: string; userMobile: string; itemId: string }) => {
+            const res = await api.post("/redeems/cafe-initiate", data);
             return res.data;
         },
     });
