@@ -50,6 +50,49 @@ import { useCafeUser } from "@/hooks/useCafeUser";
 import { ExtendedRange, useCafeKrownAnalytics } from "@/hooks/useCafeAnalytics";
 import FootfallCard from "./components/ui/FootFallCard";
 
+// ─── FEATURE FLAG ────────────────────────────────────────────────────────────
+// Set to true when revenue data is ready to be exposed to cafe owners.
+// When false, Revenue / Avg Bill / Upsell Revenue / Daywise Revenue show
+// "Coming Soon" instead of live data. ALL original code is preserved below.
+const REVENUE_STATE = false;
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─── COMING SOON HELPERS (used when REVENUE_STATE = false) ───────────────────
+
+function ComingSoonCard({
+    label,
+    icon,
+    accent = false,
+}: {
+    label: string;
+    icon: React.ReactNode;
+    accent?: boolean;
+}) {
+    return (
+        <Card className={`rounded-2xl border p-5 shadow-sm flex flex-col justify-between ${accent ? "bg-gradient-to-br from-orange-50 to-rose-50" : ""}`}>
+            <div>
+                <p className={`text-[11px] uppercase tracking-wide ${accent ? "text-amber-600" : "text-muted-foreground"}`}>
+                    {label}
+                </p>
+                <p className="text-lg font-semibold mt-2 text-slate-400">Coming Soon</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">This metric will be available soon</p>
+            </div>
+            <div className="mt-3 opacity-40">{icon}</div>
+        </Card>
+    );
+}
+
+function ComingSoonChart() {
+    return (
+        <div className="h-[260px] mt-4 flex flex-col items-center justify-center gap-2 rounded-xl bg-slate-50 border border-dashed border-slate-200">
+            <p className="text-base font-semibold text-slate-400">Coming Soon</p>
+            <p className="text-xs text-slate-400">Daywise revenue chart will appear here</p>
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Helper formatting
 const formatLocalDate = (d: string | Date) =>
     new Date(d).toLocaleDateString("en-CA");
@@ -222,37 +265,49 @@ export default function CafeDashboardPage() {
                             </Card>
 
                             {/* Revenue */}
-                            <Card className="rounded-2xl border p-5 shadow-sm">
-                                <p className="text-[11px] uppercase text-muted-foreground tracking-wide">
-                                    Revenue
-                                </p>
-                                <p className="text-3xl font-semibold mt-2 leading-tight">
-                                    {currencyFormat(summary.totalRevenue)}
-                                </p>
-                                <IndianRupee className="w-5 h-5 text-emerald-600 mt-3" />
-                            </Card>
+                            {REVENUE_STATE ? (
+                                <Card className="rounded-2xl border p-5 shadow-sm">
+                                    <p className="text-[11px] uppercase text-muted-foreground tracking-wide">
+                                        Revenue
+                                    </p>
+                                    <p className="text-3xl font-semibold mt-2 leading-tight">
+                                        {currencyFormat(summary.totalRevenue)}
+                                    </p>
+                                    <IndianRupee className="w-5 h-5 text-emerald-600 mt-3" />
+                                </Card>
+                            ) : (
+                                <ComingSoonCard label="Revenue" icon={<IndianRupee className="w-5 h-5 text-emerald-400" />} />
+                            )}
 
                             {/* Avg Bill */}
-                            <Card className="rounded-2xl border p-5 shadow-sm">
-                                <p className="text-[11px] uppercase text-muted-foreground tracking-wide">
-                                    Avg Bill Value
-                                </p>
-                                <p className="text-3xl font-semibold mt-2 leading-tight">
-                                    {currencyFormat(summary.averageBillValue)}
-                                </p>
-                                <BarChartIcon className="w-5 h-5 text-indigo-600 mt-3" />
-                            </Card>
+                            {REVENUE_STATE ? (
+                                <Card className="rounded-2xl border p-5 shadow-sm">
+                                    <p className="text-[11px] uppercase text-muted-foreground tracking-wide">
+                                        Avg Bill Value
+                                    </p>
+                                    <p className="text-3xl font-semibold mt-2 leading-tight">
+                                        {currencyFormat(summary.averageBillValue)}
+                                    </p>
+                                    <BarChartIcon className="w-5 h-5 text-indigo-600 mt-3" />
+                                </Card>
+                            ) : (
+                                <ComingSoonCard label="Avg Bill Value" icon={<BarChartIcon className="w-5 h-5 text-indigo-400" />} />
+                            )}
 
                             {/* Upsell */}
-                            <Card className="rounded-2xl border p-5 shadow-sm bg-gradient-to-br from-orange-50 to-rose-50">
-                                <p className="text-[11px] uppercase text-amber-600 tracking-wide">
-                                    Upsell Revenue
-                                </p>
-                                <p className="text-3xl font-semibold text-amber-800 mt-2 leading-tight">
-                                    {currencyFormat(summary.upsellRevenue)}
-                                </p>
-                                <TrendingUp className="w-5 h-5 text-amber-700 mt-3" />
-                            </Card>
+                            {REVENUE_STATE ? (
+                                <Card className="rounded-2xl border p-5 shadow-sm bg-gradient-to-br from-orange-50 to-rose-50">
+                                    <p className="text-[11px] uppercase text-amber-600 tracking-wide">
+                                        Upsell Revenue
+                                    </p>
+                                    <p className="text-3xl font-semibold text-amber-800 mt-2 leading-tight">
+                                        {currencyFormat(summary.upsellRevenue)}
+                                    </p>
+                                    <TrendingUp className="w-5 h-5 text-amber-700 mt-3" />
+                                </Card>
+                            ) : (
+                                <ComingSoonCard label="Upsell Revenue" icon={<TrendingUp className="w-5 h-5 text-amber-400" />} accent />
+                            )}
                         </>
                     )}
                 </div>
@@ -267,26 +322,30 @@ export default function CafeDashboardPage() {
                             Daywise Revenue
                         </p>
 
-                        <div className="h-[260px] mt-4">
-                            {isLoading ? (
-                                <Skeleton className="h-full w-full rounded-xl" />
-                            ) : (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={revenueByDay}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                        <XAxis dataKey="date" fontSize={10} tickLine={false} />
-                                        <YAxis fontSize={10} tickLine={false} />
-                                        <RechartsTooltip formatter={(v) => currencyFormat(v as number)} />
-                                        <Line
-                                            dataKey="totalRevenue"
-                                            type="monotone"
-                                            strokeWidth={2}
-                                            dot={false}
-                                        />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            )}
-                        </div>
+                        {REVENUE_STATE ? (
+                            <div className="h-[260px] mt-4">
+                                {isLoading ? (
+                                    <Skeleton className="h-full w-full rounded-xl" />
+                                ) : (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={revenueByDay}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="date" fontSize={10} tickLine={false} />
+                                            <YAxis fontSize={10} tickLine={false} />
+                                            <RechartsTooltip formatter={(v) => currencyFormat(v as number)} />
+                                            <Line
+                                                dataKey="totalRevenue"
+                                                type="monotone"
+                                                strokeWidth={2}
+                                                dot={false}
+                                            />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                )}
+                            </div>
+                        ) : (
+                            <ComingSoonChart />
+                        )}
                     </Card>
 
                     {/* New vs Returning */}
