@@ -7,11 +7,15 @@ import { useCafeUser } from "@/hooks/useCafeUser";
 import { Loader2 } from "lucide-react";
 import { CafeUserSidebarMinimal } from "./components/layout/sidebars/CafeUserSidebarMinimal";
 import { CafeUserHeader } from "./components/layout/CafeUserHeader";
+import { usePushNotification } from "@/hooks/usePushNotification";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const [collapsed, setCollapsed] = useState(false);
     const { user, loading } = useCafeUser(["cafe_admin", "cafe_staff"]);
     const router = useRouter();
+
+    // Subscribe to web push once the café user is confirmed logged in
+    usePushNotification({ enabled: !loading && !!user });
 
     if (loading) {
         return (

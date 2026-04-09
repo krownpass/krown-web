@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Eye, EyeOff, KeyRound, User, Pencil } from "lucide-react";
+import { Eye, EyeOff, KeyRound, User, Pencil, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
 import api from "@/lib/api";
 import { useCafeUser } from "@/hooks/useCafeUser";
 
@@ -21,6 +22,37 @@ export default function SettingsPage() {
     const [profileName, setProfileName] = useState("");
     const [profileUsername, setProfileUsername] = useState("");
     const [profileEmail, setProfileEmail] = useState("");
+
+    // SMS notification settings
+    const [smsPhone, setSmsPhone] = useState("");
+    const [smsEnabled, setSmsEnabled] = useState(false);
+
+    const { data: smsSettings } = useQuery({
+        queryKey: ["cafe-sms-settings", user?.cafe_id],
+        enabled: !!user?.cafe_id,
+        queryFn: async () => {
+            const res = await api.get(`/cafes/${user!.cafe_id}/notification-settings`);
+            return res.data?.data ?? null;
+        },
+    });
+
+    useEffect(() => {
+        if (smsSettings) {
+            setSmsPhone(smsSettings.sms_phone ?? "");
+            setSmsEnabled(smsSettings.sms_enabled ?? false);
+        }
+    }, [smsSettings]);
+
+    const saveSmsSettings = useMutation({
+        mutationFn: async () =>
+            api.patch(`/cafes/${user!.cafe_id}/notification-settings`, {
+                sms_phone: smsPhone || null,
+                sms_enabled: smsEnabled,
+            }),
+        onSuccess: () => toast.success("SMS notification settings saved"),
+        onError: (err: any) =>
+            toast.error(err.response?.data?.message || "Failed to save settings"),
+    });
 
     // Password fields
     const [newPassword, setNewPassword] = useState("");
@@ -273,6 +305,55 @@ export default function SettingsPage() {
                     </form>
                 </>
             )}
+
+            {/* ── SMS NOTIFICATION SETTINGS ── */}
+            <Separator />
+            <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">SMS Booking Notifications</p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    Receive an SMS on this number whenever a new booking is received.
+                </p>
+
+                <div className="flex items-center justify-between rounded-lg border border-border p-4">
+                    <div>
+                        <Label className="text-sm font-medium">Enable SMS Alerts</Label>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Get notified via SMS when a booking is placed
+                        </p>
+                    </div>
+                    <Switch
+                        checked={smsEnabled}
+                        onCheckedChange={setSmsEnabled}
+                    />
+                </div>
+
+                {smsEnabled && (
+                    <div className="space-y-1">
+                        <Label htmlFor="sms_phone">Manager SMS Number</Label>
+                        <Input
+                            id="sms_phone"
+                            type="tel"
+                            value={smsPhone}
+                            onChange={(e) => setSmsPhone(e.target.value)}
+                            placeholder="+91 98765 43210"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Include country code (e.g. +91 for India)
+                        </p>
+                    </div>
+                )}
+
+                <Button
+                    onClick={() => saveSmsSettings.mutate()}
+                    disabled={saveSmsSettings.isPending}
+                    className="w-full"
+                >
+                    {saveSmsSettings.isPending ? "Saving..." : "Save SMS Settings"}
+                </Button>
+            </div>
         </div>
     );
 }

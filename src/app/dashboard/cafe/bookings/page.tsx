@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import { Clock, Users, Phone, Edit3, Bell, History } from "lucide-react";
+import { Clock, Users, Phone, Edit3, Bell, History, CalendarOff, Plus, Trash2 } from "lucide-react";
 
 import api from "@/lib/api";
 import { useCafeUser } from "@/hooks/useCafeUser";
@@ -83,6 +83,15 @@ interface NotificationRow {
     created_at: string;
 }
 
+interface UnavailabilitySlot {
+    id: string;
+    cafe_id: string;
+    date: string;          // "YYYY-MM-DD"
+    from_time: string;     // "HH:MM"
+    to_time: string;       // "HH:MM"
+    created_at: string;
+}
+
 /* =========================
    HELPERS
    ========================= */
@@ -145,6 +154,59 @@ export default function CafeBookingsPage() {
 
     const [view, setView] = useState<"recent" | "past">("recent");
     const [search, setSearch] = useState("");
+
+    // ── Web Notifications (new booking alerts) ──────────────────────────────
+    const seenNotifIds = useRef<Set<number>>(new Set());
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    const { data: cafeNotifs } = useQuery({
+        queryKey: ["cafe-booking-notifications", cafeId],
+        enabled: !!cafeId,
+        refetchInterval: 20_000, // poll every 20 s
+        queryFn: async () => {
+            const res = await api.get(`/bookings/cafe-notifications/${cafeId}`);
+            return res.data.data as Array<{
+                id: number;
+                title: string;
+                body: string;
+                is_read: boolean;
+                created_at: string;
+            }>;
+        },
+    });
+
+    useEffect(() => {
+        if (!cafeNotifs) return;
+        const unread = cafeNotifs.filter((n) => !n.is_read);
+        setUnreadCount(unread.length);
+
+        // Request browser notification permission once
+        if (unread.length > 0 && "Notification" in window) {
+            if (Notification.permission === "default") {
+                Notification.requestPermission();
+            }
+        }
+
+        // Fire browser notifications for items we haven't seen yet
+        for (const n of unread) {
+            if (!seenNotifIds.current.has(n.id)) {
+                seenNotifIds.current.add(n.id);
+                if (Notification.permission === "granted") {
+                    new Notification(n.title, {
+                        body: n.body,
+                        icon: "/favicon.ico",
+                    });
+                }
+            }
+        }
+    }, [cafeNotifs]);
+
+    const markNotifsRead = async () => {
+        if (!cafeId || unreadCount === 0) return;
+        await api.patch(`/bookings/cafe-notifications/${cafeId}/read-all`);
+        setUnreadCount(0);
+        queryClient.invalidateQueries({ queryKey: ["cafe-booking-notifications"] });
+    };
 
     // BOOKINGS
     const { data: bookingsData, isLoading: bookingsLoading } = useQuery({
@@ -244,6 +306,55 @@ export default function CafeBookingsPage() {
         });
     }, [bookingsData]);
 
+    // UNAVAILABILITY
+    const [unavailDate, setUnavailDate] = useState("");
+    const [unavailFrom, setUnavailFrom] = useState("");
+    const [unavailTo, setUnavailTo] = useState("");
+
+    const { data: unavailSlots = [], isLoading: unavailLoading } = useQuery<UnavailabilitySlot[]>({
+        queryKey: ["cafe-unavailability", cafeId],
+        enabled: !!cafeId,
+        queryFn: async () => {
+            const res = await api.get(`/bookings/cafe-unavailability/${cafeId}`);
+            return res.data.data as UnavailabilitySlot[];
+        },
+    });
+
+    const addUnavailMutation = useMutation({
+        mutationFn: async (payload: { date: string; from_time: string; to_time: string }) =>
+            api.post(`/bookings/cafe-unavailability`, { cafe_id: cafeId, ...payload }),
+        onSuccess: () => {
+            toast.success("Unavailability period added");
+            setUnavailDate("");
+            setUnavailFrom("");
+            setUnavailTo("");
+            queryClient.invalidateQueries({ queryKey: ["cafe-unavailability"] });
+        },
+        onError: () => toast.error("Failed to add unavailability period"),
+    });
+
+    const removeUnavailMutation = useMutation({
+        mutationFn: async (id: string) =>
+            api.delete(`/bookings/cafe-unavailability/${id}`),
+        onSuccess: () => {
+            toast.success("Removed");
+            queryClient.invalidateQueries({ queryKey: ["cafe-unavailability"] });
+        },
+        onError: () => toast.error("Failed to remove"),
+    });
+
+    const handleAddUnavail = () => {
+        if (!unavailDate || !unavailFrom || !unavailTo) {
+            toast.error("Please fill in all fields");
+            return;
+        }
+        if (unavailFrom >= unavailTo) {
+            toast.error("From time must be before To time");
+            return;
+        }
+        addUnavailMutation.mutate({ date: unavailDate, from_time: unavailFrom, to_time: unavailTo });
+    };
+
     if (userLoading)
         return (
             <p className="mt-10 text-center text-sm text-muted-foreground">
@@ -270,15 +381,32 @@ export default function CafeBookingsPage() {
                     </p>
                 </div>
 
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push("/dashboard/cafe/update")}
-                    className="gap-2"
-                >
-                    <Edit3 className="h-4 w-4" />
-                    Update slots & café details
-                </Button>
+                <div className="flex items-center gap-2">
+                    {/* New booking bell */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="relative gap-2"
+                        onClick={markNotifsRead}
+                        title={unreadCount > 0 ? `${unreadCount} new booking(s)` : "No new bookings"}
+                    >
+                        <Bell className="h-4 w-4" />
+                        {unreadCount > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                {unreadCount > 9 ? "9+" : unreadCount}
+                            </span>
+                        )}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => router.push("/dashboard/cafe/update")}
+                        className="gap-2"
+                    >
+                        <Edit3 className="h-4 w-4" />
+                        Update slots & café details
+                    </Button>
+                </div>
             </div>
 
             <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)]">
@@ -437,6 +565,104 @@ export default function CafeBookingsPage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* TEMPORARY UNAVAILABILITY */}
+            <Card className="shadow-sm">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <CalendarOff className="h-5 w-5 text-slate-500" />
+                        Temporary Unavailability
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground">
+                        Block bookings for specific dates and time ranges. Slots are automatically removed after they pass.
+                    </p>
+                </CardHeader>
+
+                <CardContent className="space-y-6">
+                    {/* ADD NEW SLOT */}
+                    <div className="rounded-xl border bg-slate-50/60 p-4 space-y-3">
+                        <p className="text-sm font-medium">Add unavailability period</p>
+                        <div className="grid sm:grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                                <Label className="text-xs">Date</Label>
+                                <Input
+                                    type="date"
+                                    value={unavailDate}
+                                    min={format(new Date(), "yyyy-MM-dd")}
+                                    onChange={(e) => setUnavailDate(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs">From time</Label>
+                                <Input
+                                    type="time"
+                                    value={unavailFrom}
+                                    onChange={(e) => setUnavailFrom(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-xs">To time</Label>
+                                <Input
+                                    type="time"
+                                    value={unavailTo}
+                                    onChange={(e) => setUnavailTo(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                        <Button
+                            size="sm"
+                            onClick={handleAddUnavail}
+                            disabled={addUnavailMutation.isPending}
+                            className="gap-2"
+                        >
+                            <Plus className="h-4 w-4" />
+                            {addUnavailMutation.isPending ? "Adding..." : "Add Period"}
+                        </Button>
+                    </div>
+
+                    {/* EXISTING SLOTS */}
+                    {unavailLoading ? (
+                        <p className="text-sm text-muted-foreground">Loading...</p>
+                    ) : unavailSlots.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No unavailability periods set.</p>
+                    ) : (
+                        <div className="space-y-2">
+                            <AnimatePresence>
+                                {unavailSlots.map((slot) => (
+                                    <motion.div
+                                        key={slot.id}
+                                        initial={{ opacity: 0, y: 4 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -4 }}
+                                        className="flex items-center justify-between rounded-lg border bg-white px-4 py-3 shadow-sm"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <CalendarOff className="h-4 w-4 text-slate-400" />
+                                            <div>
+                                                <p className="text-sm font-medium">
+                                                    {format(new Date(slot.date), "dd MMM yyyy")}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {formatTime(slot.from_time)} – {formatTime(slot.to_time)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                                            onClick={() => removeUnavailMutation.mutate(slot.id)}
+                                            disabled={removeUnavailMutation.isPending}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </motion.div>
+                                ))}
+                            </AnimatePresence>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </motion.div>
     );
 }
